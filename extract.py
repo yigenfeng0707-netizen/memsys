@@ -36,14 +36,16 @@ def _parse_json(raw: str) -> dict | None:
         return None
 
 
-async def extract_facts(text: str) -> list[dict]:
+async def extract_facts(text: str, known_context: str | None = None) -> list[dict]:
+    user_msg = f"<dialogue_slice>\n{text}\n</dialogue_slice>"
+    if known_context:
+        user_msg = (
+            f"KNOWN CONTEXT about the people (use these exact names in facts, never 'the user' or 'the assistant'):\n"
+            f"{known_context}\n\n{user_msg}"
+        )
     raw = None
     try:
-        raw = await llm.chat(
-            EXTRACT_SYSTEM,
-            f"<dialogue_slice>\n{text}\n</dialogue_slice>",
-            max_tokens=1500,
-        )
+        raw = await llm.chat(EXTRACT_SYSTEM, user_msg, max_tokens=1500)
     except Exception:
         return []
     out = _parse_extracted(raw)
@@ -51,7 +53,7 @@ async def extract_facts(text: str) -> list[dict]:
         try:
             raw2 = await llm.chat(
                 EXTRACT_SYSTEM,
-                f"<dialogue_slice>\n{text}\n</dialogue_slice>",
+                user_msg,
                 max_tokens=1500,
                 temperature=0.3,
             )

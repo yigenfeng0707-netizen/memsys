@@ -2,7 +2,23 @@ import asyncio
 
 import httpx
 
-from config import CHAT_MODEL, EMBED_MODEL, LLM_API_KEY, LLM_BASE_URL
+from config import (
+    CHAT_MODEL,
+    DISABLE_THINKING,
+    EMBED_API_KEY,
+    EMBED_BASE_URL,
+    EMBED_MODEL,
+    LLM_API_KEY,
+    LLM_BASE_URL,
+)
+
+
+def _should_disable_thinking() -> bool:
+    if DISABLE_THINKING == "1":
+        return True
+    if DISABLE_THINKING == "0":
+        return False
+    return "sensenova" in CHAT_MODEL.lower()
 
 
 class LLMClient:
@@ -10,26 +26,39 @@ class LLMClient:
         self._client = httpx.AsyncClient(
             base_url=LLM_BASE_URL,
             headers={"Authorization": f"Bearer {LLM_API_KEY}"},
+            timeout=httpx.Timeout(90.0, connect=15.0),
+        )
+        self._embed_client = httpx.AsyncClient(
+            base_url=EMBED_BASE_URL,
+            headers={"Authorization": f"Bearer {EMBED_API_KEY}"},
             timeout=httpx.Timeout(60.0, connect=15.0),
         )
 
     async def chat(self, system: str, user: str, temperature: float = 0.0, max_tokens: int = 2048) -> str:
+        payload = {
+            "model": CHAT_MODEL,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+        if _should_disable_thinking():
+            payload["thinking"] = {"type": "disabled"}
         for attempt in range(3):
             try:
-                resp = await self._client.post(
-                    "/chat/completions",
-                    json={
-                        "model": CHAT_MODEL,
-                        "messages": [
-                            {"role": "system", "content": system},
-                            {"role": "user", "content": user},
-                        ],
-                        "temperature": temperature,
-                        "max_tokens": max_tokens,
-                    },
-                )
+                resp = await self._client.post("/chat/completions", json=payload)
                 resp.raise_for_status()
-                return resp.json()["choices"][0]["message"]["content"]
+                message = resp.json()["choices"][0]["message"]
+                content = (message.get("content") or "").strip()
+                if content:
+                    return content
+                reasoning = (message.get("reasoning") or message.get("reasoning_content") or "").strip()
+                if reasoning and attempt < 2:
+                    payload["max_tokens"] = int(payload["max_tokens"] * 2)
+                    continue
+                return reasoning
             except (httpx.HTTPError, KeyError):
                 if attempt == 2:
                     raise
@@ -42,7 +71,7 @@ class LLMClient:
             batch = texts[i : i + 32]
             for attempt in range(3):
                 try:
-                    resp = await self._client.post(
+                    resp = await self._embed_client.post(
                         "/embeddings",
                         json={"model": EMBED_MODEL, "input": batch},
                     )

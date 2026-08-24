@@ -115,7 +115,9 @@ async def _process_facts(
     items: list[dict],
     user_id: str,
 ) -> None:
-    fact_lists = await asyncio.gather(*[extract_facts(it["content"]) for it in items])
+    profile = get_rollup(user_id, "__profile__")
+    context = profile["content"] if profile else None
+    fact_lists = await asyncio.gather(*[extract_facts(it["content"], context) for it in items])
     fact_specs: list[dict] = []
     for it, facts in zip(items, fact_lists):
         for f in facts:

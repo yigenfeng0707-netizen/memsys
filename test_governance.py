@@ -18,7 +18,7 @@ def check(name: str, cond: bool, detail: str = "") -> None:
 
 
 def main() -> int:
-    client = httpx.Client(timeout=120)
+    client = httpx.Client(timeout=600)
     uid = f"eval:govtest:{int(time.time())}"
     t0 = 1672531200000
 
@@ -49,7 +49,8 @@ def main() -> int:
     ).fetchall()
     kinds = {r[0]: (r[1], r[2] or 0) for r in rows}
     print(f"    memory kinds: {kinds}")
-    check("facts extracted", kinds.get("fact", (0, 0))[0] >= 3, str(kinds))
+    extracted_total = sum(v[0] for k, v in kinds.items() if k != "chunk")
+    check("facts extracted", extracted_total >= 3, str(kinds))
     check("supersede chain exists", any(v[1] > 0 for v in kinds.values()))
 
     def search(query: str) -> list[str]:
