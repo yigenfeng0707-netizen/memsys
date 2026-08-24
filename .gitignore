@@ -8,3 +8,4 @@ srv_err.log
 *.log
 __pycache__/
 eval_data/
+gh_tmp.json
