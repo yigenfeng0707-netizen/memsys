@@ -1,8 +1,7 @@
-from typing import Any, Literal, Optional
-
-from fastapi import FastAPI, Header, HTTPException, Request
+from typing import Any, Optional
+from fastapi import FastAPI, Header, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-
 from config import AUTH_TOKEN
 from pipeline import run_add, run_search
 
@@ -114,10 +113,16 @@ async def add(req: AddRequest, authorization: Optional[str] = Header(None), x_ap
 
 
 @app.post("/search")
-async def search(req: SearchRequest, authorization: Optional[str] = Header(None), x_api_key: Optional[str] = Header(None)) -> dict:
+async def search(req: SearchRequest, authorization: Optional[str] = Header(None), x_api_key: Optional[str] = Header(None)) -> Any:
+    import traceback
     check_auth(authorization, x_api_key)
     try:
         data = await run_search(req.query, req.options, req.user_id, req.top_k)
+        return {"data": data}
+    except HTTPException:
+        raise
     except Exception as exc:
-        raise HTTPException(status_code=503, detail={"reason": f"search failed: {exc}"}) from exc
-    return {"data": data}
+        return JSONResponse(
+            status_code=200,
+            content={"debug_error": f"{type(exc).__name__}: {exc}", "traceback": traceback.format_exc()[-2000:]},
+        )
