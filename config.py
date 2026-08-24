@@ -30,6 +30,7 @@ RESULT_CAP = int(os.environ.get("MEMSYS_RESULT_CAP", "0"))
 CHUNKS_ENABLED = os.environ.get("MEMSYS_CHUNKS", "1") == "1"
 TRIM_CHUNK_LINES = int(os.environ.get("MEMSYS_TRIM_LINES", "0"))
 DEBUG_LOG = os.environ.get("MEMSYS_DEBUG", "0") == "1"
+AGENTIC_ROUNDS = os.environ.get("MEMSYS_AGENTIC", "0") == "1"
 
 EXTRACT_FACTS = os.environ.get("MEMSYS_EXTRACT_FACTS", "1") == "1"
 DEDUP_THRESHOLD = float(os.environ.get("MEMSYS_DEDUP_SIM", "0.97"))

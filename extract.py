@@ -120,6 +120,26 @@ async def rerank_passages(question: str, passages: list[str]) -> list[int] | Non
     return out
 
 
+GAP_SYSTEM = """You audit retrieval results for a question asked against a long multi-session dialogue memory.
+
+Given the QUESTION and one-line summaries of already-retrieved passages, determine which ASPECTS of the question are likely NOT yet covered (e.g., a list question where only some items appear, or a person/domain not represented).
+
+Output STRICT JSON only: {"sub_queries": ["...", ...]} with up to 3 short search queries targeting the UNCOVERED aspects - vary entity names, life domains (work, family, hobbies, pets, food, travel) and phrasings. If coverage appears sufficient, return {"sub_queries": []}."""
+
+
+async def gap_subqueries(question: str, hits_brief: str) -> list[str]:
+    user = f"QUESTION: {question}\n\nRETRIEVED SO FAR:\n{hits_brief}"
+    try:
+        raw = await llm.chat(GAP_SYSTEM, user, max_tokens=300)
+    except Exception:
+        return []
+    payload = _parse_json(raw)
+    if not payload:
+        return []
+    qs = payload.get("sub_queries", [])
+    return [q.strip() for q in qs if isinstance(q, str) and q.strip()][:3]
+
+
 PROFILE_SYSTEM = """You maintain ONE compact profile card summarizing a user's stable attributes, built from long-term dialogue memories.
 
 Input: CURRENT PROFILE (may be empty) and NEW FACTS.

@@ -13,6 +13,7 @@ from config import (
     DEDUP_THRESHOLD,
     EXTRACT_FACTS,
     KEYWORD_CANDIDATES,
+    AGENTIC_ROUNDS,
     MAX_CONFLICT_JUDGES_PER_ADD,
     MAX_FACTS_PER_ADD,
     RESULT_CAP,
@@ -20,7 +21,7 @@ from config import (
     TRIM_CHUNK_LINES,
     VECTOR_CANDIDATES,
 )
-from extract import extract_facts, judge_conflict, merge_profile, merge_rollup, rerank_passages
+from extract import extract_facts, gap_subqueries, judge_conflict, merge_profile, merge_rollup, rerank_passages
 from llm import llm
 from store import (
     date_from_ms,
@@ -345,17 +346,35 @@ async def run_search(query: str, options: list[str] | None, user_id: str, top_k:
     qvecs = [np.asarray(v, dtype=np.float32) for v in vec_lists]
 
     matrix, ids = vec_table.get(user_id)
+    per_variant_hits = []
     best_sim: dict[str, float] = {}
-    per_variant_hits: list[list[str]] = []
-    for qv in qvecs:
-        hits = cosine_top(matrix, ids, qv, VECTOR_CANDIDATES)
+    id_pos = {fid: i for i, fid in enumerate(ids)}
+
+    def absorb(hits: list[str], qv: np.ndarray) -> None:
         per_variant_hits.append(hits)
-        id_pos = {fid: i for i, fid in enumerate(ids)}
         for fid in hits:
             row = matrix[id_pos[fid]]
             sim = float(np.dot(row, qv)) / ((np.linalg.norm(row) + 1e-9) * (np.linalg.norm(qv) + 1e-9))
             if sim > best_sim.get(fid, -1e9):
                 best_sim[fid] = sim
+
+    for qv in qvecs:
+        absorb(cosine_top(matrix, ids, qv, VECTOR_CANDIDATES), qv)
+
+    if AGENTIC_ROUNDS and matrix.shape[0] > 0:
+        probe_hits = cosine_top(matrix, ids, qvecs[0], 12)
+        probe_contents = fetch_contents(probe_hits)
+        brief = "\n".join(
+            f"- {probe_contents.get(fid, {}).get('content', '')[:80]}" for fid in probe_hits
+        )
+        subs = await gap_subqueries(query, brief)
+        if subs:
+            sub_vecs = await llm.embed(subs)
+            for sv in sub_vecs:
+                svv = np.asarray(sv, dtype=np.float32)
+                absorb(cosine_top(matrix, ids, svv, VECTOR_CANDIDATES), svv)
+            for sq in subs[:2]:
+                absorb([fid for fid, _ in keyword_search(user_id, sq, KEYWORD_CANDIDATES)], qvecs[0])
 
     kw_ids = [fid for fid, _ in keyword_search(user_id, query, KEYWORD_CANDIDATES)]
     kw2_ids = [fid for fid, _ in keyword_search(user_id, variants[-1], KEYWORD_CANDIDATES)]
