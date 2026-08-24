@@ -1,0 +1,33 @@
+name: Keep Studio Alive
+
+on:
+  schedule:
+    - cron: '23 */6 * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping studio pages
+        env:
+          MS_OWNER: ${{ secrets.MODELSCOPE_OWNER }}
+          MS_REPO: ${{ vars.MS_STUDIO_NAME }}
+        run: |
+          REPO="${MS_REPO:-memsys-api}"
+          if [ -n "$MS_OWNER" ]; then OWNER="$MS_OWNER"; else
+            OWNER=$(curl -sS "https://modelscope.cn/openapi/v1/users/me" \
+              -H "Authorization: Bearer ${{ secrets.MODELSCOPE_TOKEN }}" \
+              | jq -r '.data.username // .Data.Username // .username // empty')
+          fi
+          [ -n "$OWNER" ] || { echo "::error::Cannot resolve owner"; exit 1; }
+          echo "Pinging $OWNER/$REPO"
+          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+          curl -sS -A "$UA" -m 60 -o /dev/null -w "studios page: %{http_code}\n" \
+            "https://modelscope.cn/studios/$OWNER/$REPO" || true
+          code=$(curl -sS -A "$UA" -m 300 -o /dev/null -w "%{http_code}" \
+            "https://$OWNER-$REPO.ms.show/health" || echo "000")
+          echo "app health: $code"
+          if [ "$code" != "200" ]; then
+            echo "::warning::App host unhealthy (HTTP $code) - studio may be sleeping or broken"
+          fi

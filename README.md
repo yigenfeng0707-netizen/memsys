@@ -73,6 +73,30 @@ python test_contract.py
 | CAP=30 截断 | 子集 -2.3pp | 证据常在31~100位，截断=扔证据 |
 | LLM 重排 | +0.4pp（噪声） | 排序不是瓶颈 |
 
+## 部署（托管公网 API）
+
+采用魔搭创空间 Docker 实例托管，GitHub Actions 自动部署（push main 即发布），每6小时保活。
+
+**首次配置清单：**
+1. 本仓库 → Settings → Secrets：`MODELSCOPE_TOKEN`（modelscope.cn/my/myaccesstoken 获取）、可选 `MODELSCOPE_OWNER`
+2. Variables：`MS_STUDIO_NAME`（默认 `memsys-api`）
+3. 魔搭创空间设置页 → 环境变量，添加：
+   - `OPENAI_API_KEY` = **必需**（OpenAI 兼容端点的 key）
+   - `OPENAI_BASE_URL` = 默认 `https://api.openai-next.com/v1`（按需覆盖）
+   - `MEMSYS_AUTH_TOKEN` = 建议设置强随机值，作为 Memory System Key 提交给平台
+4. 前置条件：魔搭账号绑定阿里云并实名认证（Docker 类型创空间要求）
+
+**部署后验证：**
+```bash
+curl https://<owner>-memsys-api.ms.show/health        # 期望 2xx
+```
+
+**AML 接入参数（提交申请时填写）：**
+- Add URL: `https://<owner>-memsys-api.ms.show/add`
+- Search URL: `https://<owner>-memsys-api.ms.show/search`
+- Health URL: `https://<owner>-memsys-api.ms.show/health`
+- Auth: Bearer / X-Api-Key（与 `MEMSYS_AUTH_TOKEN` 一致）
+
 ## 关键赛事约束备忘
 
 - 内部 LLM 必须为 gpt-4o-mini（复现不一致会废榜）

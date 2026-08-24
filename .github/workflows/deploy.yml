@@ -1,0 +1,93 @@
+name: Deploy to ModelScope Studio
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assemble space directory
+        run: |
+          set -e
+          mkdir -p space-build
+          cp requirements.txt Dockerfile space-build/
+          cp server.py config.py llm.py store.py pipeline.py extract.py space-build/
+          echo "Space size: $(du -sh space-build | cut -f1)"
+
+      - name: Resolve owner and repo name
+        env:
+          MS_TOKEN: ${{ secrets.MODELSCOPE_TOKEN }}
+          MS_OWNER: ${{ secrets.MODELSCOPE_OWNER }}
+          MS_REPO: ${{ vars.MS_STUDIO_NAME }}
+        run: |
+          if [ -n "$MS_OWNER" ]; then
+            OWNER="$MS_OWNER"
+          else
+            ME=$(curl -sS "https://modelscope.cn/openapi/v1/users/me" -H "Authorization: Bearer $MS_TOKEN")
+            echo "users/me => $ME"
+            OWNER=$(echo "$ME" | jq -r '.data.username // .Data.Username // .username // empty')
+          fi
+          [ -n "$OWNER" ] || { echo "::error::Cannot resolve ModelScope owner. Set MODELSCOPE_OWNER secret."; exit 1; }
+          REPO="${MS_REPO:-memsys-api}"
+          echo "OWNER=$OWNER" >> "$GITHUB_ENV"
+          echo "REPO=$REPO" >> "$GITHUB_ENV"
+
+      - name: Ensure studio exists
+        env:
+          MS_TOKEN: ${{ secrets.MODELSCOPE_TOKEN }}
+        run: |
+          CODE=$(curl -sS -o /tmp/create.json -w "%{http_code}" -X POST \
+            "https://modelscope.cn/openapi/v1/studios" \
+            -H "Authorization: Bearer $MS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"owner\":\"$OWNER\",\"repo_name\":\"$REPO\",\"sdk_type\":\"docker\",\"display_name\":\"MemSys API\",\"private\":false}")
+          echo "create status=$CODE"; cat /tmp/create.json || true
+          [ "$CODE" = "200" ] || grep -qiE "exist|duplicate|already" /tmp/create.json || {
+            echo "::warning::Studio create returned $CODE (may already exist)"; }
+
+      - name: Push code to studio
+        env:
+          MS_TOKEN: ${{ secrets.MODELSCOPE_TOKEN }}
+        run: |
+          set -e
+          REMOTE="https://oauth2:$MS_TOKEN@www.modelscope.cn/studios/$OWNER/$REPO.git"
+
+          if ! git clone --depth 1 "$REMOTE" ms-studio 2>/tmp/clone.err; then
+            echo "clone failed (empty repo?), init fresh: $(cat /tmp/clone.err)"
+            mkdir ms-studio && cd ms-studio
+            git init -b master
+            git remote add origin "$REMOTE"
+            cd ..
+          fi
+
+          cd ms-studio
+          git config user.email "action@github.com"
+          git config user.name "gh-action"
+          git fetch origin master 2>/dev/null || true
+          if git rev-parse --verify origin/master >/dev/null 2>&1; then
+            git reset --hard origin/master
+          fi
+
+          cp -r ../space-build/. .
+          git add -A -f
+          if git diff --cached --quiet; then
+            echo "No changes to deploy"
+          else
+            git commit -m "Deploy from GitHub ${GITHUB_SHA}"
+            git push origin HEAD:master
+          fi
+
+      - name: Trigger deployment
+        env:
+          MS_TOKEN: ${{ secrets.MODELSCOPE_TOKEN }}
+        run: |
+          curl -sS -X POST \
+            "https://modelscope.cn/openapi/v1/studios/$OWNER/$REPO/deploy" \
+            -H "Authorization: Bearer $MS_TOKEN" || echo "::warning::deploy trigger failed (studio may auto-build on push)"
+          echo "Public URL: https://modelscope.cn/studios/$OWNER/$REPO"
+          echo "API base will be: https://$OWNER-$REPO.ms.show"
