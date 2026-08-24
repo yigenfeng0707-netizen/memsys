@@ -387,6 +387,14 @@ async def run_search(query: str, options: list[str] | None, user_id: str, top_k:
 
     trimmed = (active + stale)[:top_k]
 
+    id_pos = {fid: i for i, fid in enumerate(ids)}
+    qnorm = float(np.linalg.norm(qvecs[0])) + 1e-9
+    known_scores: dict[str, float] = {}
+    for fid in trimmed:
+        if fid in id_pos and id_pos[fid] < matrix.shape[0]:
+            row = matrix[id_pos[fid]]
+            known_scores[fid] = float(np.dot(row, qvecs[0])) / ((np.linalg.norm(row) + 1e-9) * qnorm)
+
     results = []
     query_words = {w for w in re.sub(r"[^a-z0-9 ]", " ", (query + " " + " ".join(variants)).lower()).split() if len(w) > 2}
     for fid in trimmed:
