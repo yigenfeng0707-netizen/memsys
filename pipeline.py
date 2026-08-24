@@ -396,12 +396,13 @@ async def run_search(query: str, options: list[str] | None, user_id: str, top_k:
         out_content = info["content"]
         if TRIM_CHUNK_LINES > 0 and info.get("kind") == "chunk":
             out_content = _trim_chunk_lines(out_content, query_words, TRIM_CHUNK_LINES)
+        raw_score = known_scores.get(fid, 0.0)
         results.append(
             {
-                "id": fid,
-                "content": out_content,
-                "score": round(best_sim.get(fid, 0.0), 4),
-                "created_at": info["created_at"],
+                "id": str(fid),
+                "content": str(out_content),
+                "score": float(round(float(raw_score), 4)),
+                "created_at": str(info["created_at"]),
             }
         )
     return results

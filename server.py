@@ -114,11 +114,13 @@ async def add(req: AddRequest, authorization: Optional[str] = Header(None), x_ap
 
 @app.post("/search")
 async def search(req: SearchRequest, authorization: Optional[str] = Header(None), x_api_key: Optional[str] = Header(None)) -> Any:
+    import json as _json
     import traceback
     check_auth(authorization, x_api_key)
     try:
         data = await run_search(req.query, req.options, req.user_id, req.top_k)
-        return {"data": data}
+        safe = _json.loads(_json.dumps({"data": data}, default=str))
+        return JSONResponse(content=safe)
     except HTTPException:
         raise
     except Exception as exc:
