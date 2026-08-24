@@ -1,0 +1,60 @@
+import asyncio
+
+import httpx
+
+from config import CHAT_MODEL, EMBED_MODEL, LLM_API_KEY, LLM_BASE_URL
+
+
+class LLMClient:
+    def __init__(self) -> None:
+        self._client = httpx.AsyncClient(
+            base_url=LLM_BASE_URL,
+            headers={"Authorization": f"Bearer {LLM_API_KEY}"},
+            timeout=httpx.Timeout(60.0, connect=15.0),
+        )
+
+    async def chat(self, system: str, user: str, temperature: float = 0.0, max_tokens: int = 2048) -> str:
+        for attempt in range(3):
+            try:
+                resp = await self._client.post(
+                    "/chat/completions",
+                    json={
+                        "model": CHAT_MODEL,
+                        "messages": [
+                            {"role": "system", "content": system},
+                            {"role": "user", "content": user},
+                        ],
+                        "temperature": temperature,
+                        "max_tokens": max_tokens,
+                    },
+                )
+                resp.raise_for_status()
+                return resp.json()["choices"][0]["message"]["content"]
+            except (httpx.HTTPError, KeyError):
+                if attempt == 2:
+                    raise
+                await asyncio.sleep(1.5 * (attempt + 1))
+        raise RuntimeError("unreachable")
+
+    async def embed(self, texts: list[str]) -> list[list[float]]:
+        out: list[list[float]] = []
+        for i in range(0, len(texts), 32):
+            batch = texts[i : i + 32]
+            for attempt in range(3):
+                try:
+                    resp = await self._client.post(
+                        "/embeddings",
+                        json={"model": EMBED_MODEL, "input": batch},
+                    )
+                    resp.raise_for_status()
+                    data = sorted(resp.json()["data"], key=lambda d: d["index"])
+                    out.extend(d["embedding"] for d in data)
+                    break
+                except (httpx.HTTPError, KeyError):
+                    if attempt == 2:
+                        raise
+                    await asyncio.sleep(1.5 * (attempt + 1))
+        return out
+
+
+llm = LLMClient()
