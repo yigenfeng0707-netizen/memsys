@@ -5,6 +5,7 @@ import time
 import httpx
 
 BASE = os.environ.get("MEMSYS_TEST_BASE", "http://127.0.0.1:8790")
+TOKEN = os.environ.get("MEMSYS_TEST_TOKEN", "")
 
 failures: list[str] = []
 
@@ -17,7 +18,8 @@ def check(name: str, cond: bool, detail: str = "") -> None:
 
 
 def main() -> int:
-    client = httpx.Client(timeout=60)
+    headers = {"Authorization": f"Bearer {TOKEN}"} if TOKEN else {}
+    client = httpx.Client(timeout=60, headers=headers)
 
     r = client.get(f"{BASE}/health")
     check("health 2xx", 200 <= r.status_code < 300, str(r.status_code))
