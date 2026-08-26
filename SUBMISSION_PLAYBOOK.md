@@ -94,3 +94,30 @@ MEMSYS_TEST_BASE="$BASE" MEMSYS_TEST_TOKEN="$TOKEN" \
   - POST /add 同样 403，请求未达 App。
   - 这是本期唯一未排除的上线风险，集中在 smoke 阶段暴露。
 - 第二赛周期变化：Full 次数从一期"当期 1 次"放宽为"本期最多 2 次"；内部模型白名单是否放开尚未在 API 指南中明确（本地仍用 gpt-4o-mini，符合已知约束）。
+
+## 6. 公网契约终验实测记录（2026-08-26，9-20 前预检）
+
+对线上 `https://gsym236998-memsys-api.ms.show` 跑官方 15 项契约测试（`test_contract.py` 同逻辑，带 2s 可检索等待）：
+
+| 客户端 UA | 结果 |
+|---|---|
+| 浏览器级 UA（Chrome 126） | **15/15 全过**：health、add 200 + 三 ID 回显 + 幂等重放、search 结构/相关性、user_id 隔离、top_k=100 全部通过 |
+| 真实 httpx 默认 `python-httpx/0.27.0` | **12/15 失败**，全部 403：`{"Code":10010101007,"Message":"当前接口不支持通过SDK Token直接访问..."}`——请求在 ms.show WAF 层被拒，未达 App |
+
+结论：UA 过滤风险已被**实测坐实**，而非推测。App 层逻辑在可达时完全正确。
+
+## 7. 鉴权状态
+
+- 线上 `MEMSYS_AUTH_TOKEN` 当前**未设置**——/add 无需鉴权即 200。
+- 影响：AML 平台无论带不带 Bearer 都能调通，**不存在鉴权不匹配风险**；但端点对公网完全开放（可写）。
+- 处置建议：9-20 拿到 AML 发放的 issued key 后，**在魔搭创空间设置该应用的 `MEMSYS_AUTH_TOKEN = <issued key>`**，使 Bearer 鉴权与平台 key 对齐，恢复端点受保护。设好后重跑 Step C 契约终验确认仍 15/15 通过。
+- 注意：改环境变量会触发魔搭重启应用实例，改动后留 1–2 分钟再测。
+
+## 8. 9-20 当日速查
+
+```
+curl -A "Mozilla/5.0" https://gsym236998-memsys-api.ms.show/health        # 期望 200
+MEMSYS_TEST_BASE="https://gsym236998-memsys-api.ms.show" python test_contract.py   # 15 项
+```
+若 `test_contract.py`（默认 httpx UA）报 403 → 命中 UA 风险，转 §4 应急，不进入 smoke。
+
