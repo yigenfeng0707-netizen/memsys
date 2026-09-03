@@ -66,7 +66,7 @@ jobs:
               "$BASE/secrets" \
               -H "Authorization: Bearer $MS_TOKEN" \
               -H "Content-Type: application/json" \
-              -d "{\"name\":\"OPENAI_API_KEY\",\"value\":\"$OPENAI_API_KEY\"}")
+              -d "{\"key\":\"OPENAI_API_KEY\",\"value\":\"$OPENAI_API_KEY\"}")
             echo "OPENAI_API_KEY secret status=$CODE"; cat /tmp/secret.json || true
           else
             echo "::warning::OPENAI_API_KEY secret not set in GitHub - skipping sync"
@@ -79,7 +79,7 @@ jobs:
               "$BASE/secrets" \
               -H "Authorization: Bearer $MS_TOKEN" \
               -H "Content-Type: application/json" \
-              -d "{\"name\":\"MEMSYS_AUTH_TOKEN\",\"value\":\"$MEMSYS_AUTH_TOKEN\"}")
+              -d "{\"key\":\"MEMSYS_AUTH_TOKEN\",\"value\":\"$MEMSYS_AUTH_TOKEN\"}")
             echo "MEMSYS_AUTH_TOKEN secret status=$CODE"; cat /tmp/secret2.json || true
           else
             echo "MEMSYS_AUTH_TOKEN not set - endpoint will be open (no auth)"
@@ -99,7 +99,7 @@ jobs:
               "$BASE/variables" \
               -H "Authorization: Bearer $MS_TOKEN" \
               -H "Content-Type: application/json" \
-              -d "{\"name\":\"$KEY\",\"value\":\"$VAL\"}" || true
+              -d "{\"key\":\"$KEY\",\"value\":\"$VAL\"}" || true
           done
 
       - name: Push code to studio
