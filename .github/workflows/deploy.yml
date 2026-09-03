@@ -59,48 +59,72 @@ jobs:
           set -e
           BASE="https://modelscope.cn/openapi/v1/studios/$OWNER/$REPO"
 
-          # Set OPENAI_API_KEY as studio secret
-          if [ -n "$OPENAI_API_KEY" ]; then
-            echo "Setting OPENAI_API_KEY..."
-            CODE=$(curl -sS -o /tmp/secret.json -w "%{http_code}" -X POST \
+          # Helper: upsert secret (POST create, PUT update on 409)
+          upsert_secret() {
+            local KEY="$1" VAL="$2"
+            local BODY="{\"key\":\"$KEY\",\"value\":\"$VAL\"}"
+            CODE=$(curl -sS -o /tmp/sec.json -w "%{http_code}" -X POST \
               "$BASE/secrets" \
               -H "Authorization: Bearer $MS_TOKEN" \
               -H "Content-Type: application/json" \
-              -d "{\"key\":\"OPENAI_API_KEY\",\"value\":\"$OPENAI_API_KEY\"}")
-            echo "OPENAI_API_KEY secret status=$CODE"; cat /tmp/secret.json || true
+              -d "$BODY")
+            echo "  $KEY POST status=$CODE"
+            if [ "$CODE" = "409" ]; then
+              CODE=$(curl -sS -o /tmp/sec.json -w "%{http_code}" -X PUT \
+                "$BASE/secrets" \
+                -H "Authorization: Bearer $MS_TOKEN" \
+                -H "Content-Type: application/json" \
+                -d "$BODY")
+              echo "  $KEY PUT status=$CODE"
+            fi
+            cat /tmp/sec.json 2>/dev/null || true
+            [ "$CODE" = "200" ] || [ "$CODE" = "201" ] || {
+              echo "::error::Failed to sync secret $KEY (status=$CODE)"; exit 1; }
+          }
+
+          # Helper: upsert variable (POST create, PUT update on 409)
+          upsert_var() {
+            local KEY="$1" VAL="$2"
+            local BODY="{\"key\":\"$KEY\",\"value\":\"$VAL\"}"
+            CODE=$(curl -sS -o /tmp/var.json -w "%{http_code}" -X POST \
+              "$BASE/variables" \
+              -H "Authorization: Bearer $MS_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "$BODY")
+            echo "  $KEY POST status=$CODE"
+            if [ "$CODE" = "409" ]; then
+              CODE=$(curl -sS -o /tmp/var.json -w "%{http_code}" -X PUT \
+                "$BASE/variables" \
+                -H "Authorization: Bearer $MS_TOKEN" \
+                -H "Content-Type: application/json" \
+                -d "$BODY")
+              echo "  $KEY PUT status=$CODE"
+            fi
+            cat /tmp/var.json 2>/dev/null || true
+          }
+
+          # Sync secrets
+          if [ -n "$OPENAI_API_KEY" ]; then
+            echo "Setting OPENAI_API_KEY..."
+            upsert_secret "OPENAI_API_KEY" "$OPENAI_API_KEY"
           else
             echo "::warning::OPENAI_API_KEY secret not set in GitHub - skipping sync"
           fi
 
-          # Set MEMSYS_AUTH_TOKEN as studio secret (if available)
           if [ -n "$MEMSYS_AUTH_TOKEN" ]; then
             echo "Setting MEMSYS_AUTH_TOKEN..."
-            CODE=$(curl -sS -o /tmp/secret2.json -w "%{http_code}" -X POST \
-              "$BASE/secrets" \
-              -H "Authorization: Bearer $MS_TOKEN" \
-              -H "Content-Type: application/json" \
-              -d "{\"key\":\"MEMSYS_AUTH_TOKEN\",\"value\":\"$MEMSYS_AUTH_TOKEN\"}")
-            echo "MEMSYS_AUTH_TOKEN secret status=$CODE"; cat /tmp/secret2.json || true
+            upsert_secret "MEMSYS_AUTH_TOKEN" "$MEMSYS_AUTH_TOKEN"
           else
             echo "MEMSYS_AUTH_TOKEN not set - endpoint will be open (no auth)"
           fi
 
-          # Set other required env vars as plaintext variables
-          for KV in \
-            "OPENAI_BASE_URL=https://api.openai-next.com/v1" \
-            "CHAT_MODEL=gpt-4o-mini" \
-            "EMBED_MODEL=text-embedding-3-small" \
-            "MEMSYS_PORT=7860" \
-            "MEMSYS_DB=data/memories.db"; do
-            KEY="${KV%%=*}"
-            VAL="${KV#*=}"
-            echo "Setting variable $KEY=$VAL"
-            curl -sS -o /dev/null -w "  $KEY status=%{http_code}\n" -X POST \
-              "$BASE/variables" \
-              -H "Authorization: Bearer $MS_TOKEN" \
-              -H "Content-Type: application/json" \
-              -d "{\"key\":\"$KEY\",\"value\":\"$VAL\"}" || true
-          done
+          # Sync plaintext variables
+          echo "Setting plaintext variables..."
+          upsert_var "OPENAI_BASE_URL" "https://api.openai-next.com/v1"
+          upsert_var "CHAT_MODEL" "gpt-4o-mini"
+          upsert_var "EMBED_MODEL" "text-embedding-3-small"
+          upsert_var "MEMSYS_PORT" "7860"
+          upsert_var "MEMSYS_DB" "data/memories.db"
 
       - name: Push code to studio
         env:
