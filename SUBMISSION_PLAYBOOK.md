@@ -33,6 +33,21 @@
 > 浏览器 UA（`Mozilla/5.0 ...`）可过。平台评测请求的 UA 未知，是核心风险。
 > **全部自测命令必须带浏览器 UA**。
 
+### CI/CD 自动化（GitHub Actions）
+
+> **已部署**：push 到 main 自动触发 deploy + 每 10 分钟 keepalive 心跳保活。
+
+| Workflow | 文件 | 触发 | 作用 |
+|---|---|---|---|
+| Deploy | `.github/workflows/deploy.yml` | push main / 手动 | 同步 env vars → 推送代码 → 部署 → health check |
+| Keepalive | `.github/workflows/keepalive.yml` | cron `*/10 * * * *` | ping health → 不健康自动 redeploy |
+
+**关键发现（踩坑）**：
+- 魔搭 Studio **secrets 不会注入 Docker 环境变量**，只有 **variables（明文）才会**。
+- `OPENAI_API_KEY` 必须设为 variable，不能设为 secret。
+- GitHub Secret 中存储 key 值（安全），CI/CD 同步时推送到魔搭 variable（明文）。
+- variables API：POST 创建（409=已存在）→ PUT 更新（404=不存在）→ 需先 DELETE secret 再 POST variable。
+
 ---
 
 ## 1. T-17d ~ T-1d 预检（9/3 ~ 9/19，建议 9/18 做一次完整预检）
