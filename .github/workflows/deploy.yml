@@ -16,7 +16,7 @@ jobs:
           set -e
           mkdir -p space-build
           cp requirements.txt Dockerfile space-build/
-          cp server.py config.py llm.py store.py pipeline.py extract.py space-build/
+          cp server.py config.py llm.py store.py pipeline.py extract.py ingest_only.py space-build/
           echo "Space size: $(du -sh space-build | cut -f1)"
 
       - name: Resolve owner and repo name
@@ -49,6 +49,58 @@ jobs:
           echo "create status=$CODE"; cat /tmp/create.json || true
           [ "$CODE" = "200" ] || grep -qiE "exist|duplicate|already" /tmp/create.json || {
             echo "::warning::Studio create returned $CODE (may already exist)"; }
+
+      - name: Sync secrets to ModelScope Studio
+        env:
+          MS_TOKEN: ${{ secrets.MODELSCOPE_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          MEMSYS_AUTH_TOKEN: ${{ secrets.MEMSYS_AUTH_TOKEN }}
+        run: |
+          set -e
+          BASE="https://modelscope.cn/openapi/v1/studios/$OWNER/$REPO"
+
+          # Set OPENAI_API_KEY as studio secret
+          if [ -n "$OPENAI_API_KEY" ]; then
+            echo "Setting OPENAI_API_KEY..."
+            CODE=$(curl -sS -o /tmp/secret.json -w "%{http_code}" -X POST \
+              "$BASE/secrets" \
+              -H "Authorization: Bearer $MS_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"name\":\"OPENAI_API_KEY\",\"value\":\"$OPENAI_API_KEY\"}")
+            echo "OPENAI_API_KEY secret status=$CODE"; cat /tmp/secret.json || true
+          else
+            echo "::warning::OPENAI_API_KEY secret not set in GitHub - skipping sync"
+          fi
+
+          # Set MEMSYS_AUTH_TOKEN as studio secret (if available)
+          if [ -n "$MEMSYS_AUTH_TOKEN" ]; then
+            echo "Setting MEMSYS_AUTH_TOKEN..."
+            CODE=$(curl -sS -o /tmp/secret2.json -w "%{http_code}" -X POST \
+              "$BASE/secrets" \
+              -H "Authorization: Bearer $MS_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"name\":\"MEMSYS_AUTH_TOKEN\",\"value\":\"$MEMSYS_AUTH_TOKEN\"}")
+            echo "MEMSYS_AUTH_TOKEN secret status=$CODE"; cat /tmp/secret2.json || true
+          else
+            echo "MEMSYS_AUTH_TOKEN not set - endpoint will be open (no auth)"
+          fi
+
+          # Set other required env vars as plaintext variables
+          for KV in \
+            "OPENAI_BASE_URL=https://api.openai-next.com/v1" \
+            "CHAT_MODEL=gpt-4o-mini" \
+            "EMBED_MODEL=text-embedding-3-small" \
+            "MEMSYS_PORT=7860" \
+            "MEMSYS_DB=data/memories.db"; do
+            KEY="${KV%%=*}"
+            VAL="${KV#*=}"
+            echo "Setting variable $KEY=$VAL"
+            curl -sS -o /dev/null -w "  $KEY status=%{http_code}\n" -X POST \
+              "$BASE/variables" \
+              -H "Authorization: Bearer $MS_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"name\":\"$KEY\",\"value\":\"$VAL\"}" || true
+          done
 
       - name: Push code to studio
         env:
@@ -91,3 +143,25 @@ jobs:
             -H "Authorization: Bearer $MS_TOKEN" || echo "::warning::deploy trigger failed (studio may auto-build on push)"
           echo "Public URL: https://modelscope.cn/studios/$OWNER/$REPO"
           echo "API base will be: https://$OWNER-$REPO.ms.show"
+
+      - name: Wait for deployment and health check
+        env:
+          MS_TOKEN: ${{ secrets.MODELSCOPE_TOKEN }}
+        run: |
+          BASE="https://$OWNER-$REPO.ms.show"
+          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+          echo "Waiting for deployment to complete..."
+          sleep 30
+          for i in $(seq 1 12); do
+            CODE=$(curl -sS -A "$UA" -m 30 -o /dev/null -w "%{http_code}" "$BASE/health" 2>/dev/null || echo "000")
+            echo "  attempt $i: health=$CODE"
+            if [ "$CODE" = "200" ]; then
+              echo "Deployment healthy!"
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::warning::Health check failed after 12 attempts - check studio logs"
+          # Fetch run logs for diagnosis
+          curl -sS "https://modelscope.cn/openapi/v1/studios/$OWNER/$REPO/logs/run" \
+            -H "Authorization: Bearer $MS_TOKEN" 2>/dev/null | tail -50 || true
