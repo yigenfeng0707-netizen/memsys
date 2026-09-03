@@ -50,7 +50,7 @@ jobs:
           [ "$CODE" = "200" ] || grep -qiE "exist|duplicate|already" /tmp/create.json || {
             echo "::warning::Studio create returned $CODE (may already exist)"; }
 
-      - name: Sync secrets to ModelScope Studio
+      - name: Sync env vars to ModelScope Studio
         env:
           MS_TOKEN: ${{ secrets.MODELSCOPE_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -59,30 +59,8 @@ jobs:
           set -e
           BASE="https://modelscope.cn/openapi/v1/studios/$OWNER/$REPO"
 
-          # Helper: upsert secret (POST create, PUT update on 409)
-          upsert_secret() {
-            local KEY="$1" VAL="$2"
-            local BODY="{\"key\":\"$KEY\",\"value\":\"$VAL\"}"
-            CODE=$(curl -sS -o /tmp/sec.json -w "%{http_code}" -X POST \
-              "$BASE/secrets" \
-              -H "Authorization: Bearer $MS_TOKEN" \
-              -H "Content-Type: application/json" \
-              -d "$BODY")
-            echo "  $KEY POST status=$CODE"
-            if [ "$CODE" = "409" ]; then
-              CODE=$(curl -sS -o /tmp/sec.json -w "%{http_code}" -X PUT \
-                "$BASE/secrets" \
-                -H "Authorization: Bearer $MS_TOKEN" \
-                -H "Content-Type: application/json" \
-                -d "$BODY")
-              echo "  $KEY PUT status=$CODE"
-            fi
-            cat /tmp/sec.json 2>/dev/null || true
-            [ "$CODE" = "200" ] || [ "$CODE" = "201" ] || {
-              echo "::error::Failed to sync secret $KEY (status=$CODE)"; exit 1; }
-          }
-
           # Helper: upsert variable (POST create, PUT update on 409)
+          # If PUT returns 404, a secret with that key may exist — delete it and retry POST.
           upsert_var() {
             local KEY="$1" VAL="$2"
             local BODY="{\"key\":\"$KEY\",\"value\":\"$VAL\"}"
@@ -99,27 +77,40 @@ jobs:
                 -H "Content-Type: application/json" \
                 -d "$BODY")
               echo "  $KEY PUT status=$CODE"
+              if [ "$CODE" = "404" ]; then
+                echo "  $KEY: secret may occupy key, deleting secret and retrying..."
+                curl -sS -o /dev/null -X DELETE \
+                  "$BASE/secrets" \
+                  -H "Authorization: Bearer $MS_TOKEN" \
+                  -H "Content-Type: application/json" \
+                  -d "{\"key\":\"$KEY\"}" || true
+                CODE=$(curl -sS -o /tmp/var.json -w "%{http_code}" -X POST \
+                  "$BASE/variables" \
+                  -H "Authorization: Bearer $MS_TOKEN" \
+                  -H "Content-Type: application/json" \
+                  -d "$BODY")
+                echo "  $KEY POST(retry) status=$CODE"
+              fi
             fi
             cat /tmp/var.json 2>/dev/null || true
           }
 
-          # Sync secrets
+          # Sync all env vars as ModelScope variables (NOT secrets).
+          # ModelScope secrets are NOT injected into Docker env vars;
+          # only plaintext variables are. So we use variables for everything.
+          echo "Setting environment variables..."
           if [ -n "$OPENAI_API_KEY" ]; then
-            echo "Setting OPENAI_API_KEY..."
-            upsert_secret "OPENAI_API_KEY" "$OPENAI_API_KEY"
+            upsert_var "OPENAI_API_KEY" "$OPENAI_API_KEY"
           else
-            echo "::warning::OPENAI_API_KEY secret not set in GitHub - skipping sync"
+            echo "::warning::OPENAI_API_KEY not set in GitHub - endpoint will fail"
           fi
 
           if [ -n "$MEMSYS_AUTH_TOKEN" ]; then
-            echo "Setting MEMSYS_AUTH_TOKEN..."
-            upsert_secret "MEMSYS_AUTH_TOKEN" "$MEMSYS_AUTH_TOKEN"
+            upsert_var "MEMSYS_AUTH_TOKEN" "$MEMSYS_AUTH_TOKEN"
           else
             echo "MEMSYS_AUTH_TOKEN not set - endpoint will be open (no auth)"
           fi
 
-          # Sync plaintext variables
-          echo "Setting plaintext variables..."
           upsert_var "OPENAI_BASE_URL" "https://api.openai-next.com/v1"
           upsert_var "CHAT_MODEL" "gpt-4o-mini"
           upsert_var "EMBED_MODEL" "text-embedding-3-small"
