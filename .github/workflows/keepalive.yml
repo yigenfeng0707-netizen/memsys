@@ -2,8 +2,11 @@ name: Keep Studio Alive
 
 on:
   schedule:
-    # Every 10 minutes
-    - cron: '*/10 * * * *'
+    # Every 5 minutes, staggered entries avoiding minute :00 (GitHub cron
+    # high-load slot). Empirically GitHub drops most scheduled runs; more
+    # staggered slots = higher chance at least one fires each 30min window.
+    - cron: '4-59/10 * * * *'
+    - cron: '9-59/10 * * * *'
   workflow_dispatch:
 
 jobs:
