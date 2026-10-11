@@ -46,6 +46,8 @@ def check_auth(authorization: Optional[str], x_api_key: Optional[str]) -> None:
         supplied = raw
     elif x_api_key:
         supplied = x_api_key.strip()
+    if not supplied:
+        raise HTTPException(status_code=401, detail={"reason": "missing credentials"})
     if supplied != AUTH_TOKEN:
         raise HTTPException(status_code=401, detail={"reason": "invalid credentials"})
 
