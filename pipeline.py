@@ -47,6 +47,7 @@ def chunk_messages(messages: list[dict], user_id: str, session_id: str) -> list[
     buf: list[str] = []
     buf_chars = 0
     last_ts: int | None = None
+    first_ts: int | None = None
 
     def flush() -> None:
         nonlocal buf, buf_chars
@@ -59,6 +60,7 @@ def chunk_messages(messages: list[dict], user_id: str, session_id: str) -> list[
                 "content": "\n".join(buf).strip(),
                 "created_at": iso_from_ms(last_ts),
                 "ts_ms": last_ts,
+                "first_ts": first_ts,
             }
         )
         buf = []
@@ -74,10 +76,13 @@ def chunk_messages(messages: list[dict], user_id: str, session_id: str) -> list[
         line = f"[{date_str}] {role}: {content}" if date_str else f"{role}: {content}"
         if buf and buf_chars + len(line) > CHUNK_MAX_CHARS:
             flush()
+            first_ts = None
         buf.append(line)
         buf_chars += len(line)
         if ts is not None:
             last_ts = ts
+            if first_ts is None:
+                first_ts = ts
     flush()
     return items
 
@@ -123,6 +128,13 @@ async def _process_facts(
     for it, facts in zip(items, fact_lists):
         for f in facts:
             ts = f["timestamp"] if f["timestamp"] is not None else it.get("ts_ms")
+            if ts is not None:
+                chunk_last = it.get("ts_ms")
+                if chunk_last is not None:
+                    lo = (it.get("first_ts") or chunk_last) - 30 * 86400_000
+                    hi = chunk_last + 86400_000
+                    if not (lo <= ts <= hi):
+                        ts = chunk_last
             date_str = date_from_ms(ts)
             prefix = f"[{date_str}] " if date_str else ""
             fact_specs.append(
