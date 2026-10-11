@@ -2,8 +2,31 @@
 
 > **最后更新**：2026-10-11
 > **用途**：AML 第二届挑战赛报名与评测执行清单（赛期 9/20~10/31，今日已进第 22 天）。
-> **状态**：**未报名**（浏览器历史/知识库/线上 token 三方核验）。v0.7 修复版已部署，等待平台恢复（10/11 全天 522）。
-> **⚠️ 核验记录（10/11）**：Chrome/Edge 历史仅 9/30 各 2-3 次秒级扫访；remio 无 key 记录；线上 AUTH_TOKEN 未设 → 确认未报名。
+> **状态**：**报名申请已提交（pending）**——2026-10-11 16:55（UTC+8）经平台源站 8088 旁路提交，`request_id=request_676a7115ff6b4acc9bc4`，审批通知将发至 fengyigen@qq.com。等审批后走 Smoke → Full。
+> **⚠️ 核验记录（10/11 上午）**：Chrome/Edge 历史仅 9/30 各 2-3 次秒级扫访；remio 无 key 记录；线上 AUTH_TOKEN 未设 → 确认此前从未报名。
+
+---
+
+## 0.5 报名提交记录（2026-10-11）
+
+| 项 | 值 |
+|---|---|
+| 提交方式 | `POST http://47.112.15.137:8088/evaluation-access-requests`（源站直连，绕开 522 的 CF 前置） |
+| request_id | `request_676a7115ff6b4acc9bc4` |
+| request_token | `gy5Ktynb6I8Sn8gK5CF9FuISjixF60x7iQ-czKB2_Eg`（查询/关联用，勿丢） |
+| 状态 | `pending`，`notification_status=sent`（通知已发邮箱） |
+| 赛道/组别 | academic / participant_api |
+| 版本 | v0.7-e158c66 |
+| Auth 方案 | **x-api-key**（见下方 WAF 新发现） |
+| memory_api_key | 已绑定（`memsys_sk_d5b9...`，GitHub secret + 魔搭 variable 同步） |
+| 凭据文件 | 本地 `memsys_key.txt` + `aml_submission.json`（Temp/opencode） |
+
+### WAF/网关新发现（10/11 实测，推翻旧认知）
+
+1. **ms.show 网关会给每个到达应用的请求注入自己的 `Authorization` 头**（56 字符，值固定）——应用侧看到的 Authorization 永远不是调用方发的。用 401 诊断指纹（env_sha8/supplied_sha8/source）实测坐实。
+2. 因此 **`Authorization: Bearer/Token <key>` 在 ms.show 上永远无法鉴权成功**（403 或被网关值顶掉）。**唯一可用方案：`X-Api-Key: <key>`**（app 已改为优先读 x-api-key）。
+3. 申请表 `api_auth_scheme` 必须填 **`x-api-key`**；平台评测/Smoke 也必须用该头。若平台只会发 Authorization，需提前邮件说明（contactus@...）。
+4. PowerShell `Invoke-WebRequest` 对 4xx 错误体不解压 → 显示空 body，**排障一律用 curl.exe**。
 
 ---
 
@@ -20,9 +43,9 @@
 | Add URL | `https://gsym236998-memsys-api.ms.show/add` |
 | Search URL | `https://gsym236998-memsys-api.ms.show/search` |
 | Health URL | `https://gsym236998-memsys-api.ms.show/health` |
-| 鉴权 | Bearer token（`Authorization: Bearer <MEMSYS_AUTH_TOKEN>`） |
+| 鉴权 | **X-Api-Key**（`X-Api-Key: <MEMSYS_AUTH_TOKEN>`）——ms.show 网关注入自有 Authorization，Bearer/Token 方案不可用 |
 | GitHub 仓库 | https://github.com/yigenfeng0707-netizen/memsys |
-| 提交 commit | `66cbd39`（v0.7：日期钳制修复 + key 轮换同步，app 代码 = a8f5de2 + pipeline 时间戳钳制） |
+| 提交 commit | `e158c66`（v0.7 日期钳制 + X-Api-Key 优先鉴权；app 代码 = a8f5de2 + pipeline 钳制 + server 鉴权重排） |
 | 内部模型 | gpt-4o-mini（Add 抽取）+ text-embedding-3-small（向量化） |
 | 本地基线 | LoCoMo 全量 1542 题 · **67.8%**（Official answer=gpt-4o-mini / judge=gpt-4o） |
 | Full 评测次数 | 本期最多 **2 次**，受理后版本冻结 30 天冷却 |
@@ -427,12 +450,12 @@ Smoke 全 403？
 - POST /add 同样 403，请求未达 App。
 - 错误体：`{"Code":10010101007,"Message":"当前接口不支持通过SDK Token直接访问..."}`。
 
-### 鉴权状态
+### 鉴权状态（10/11 更新）
 
-- 线上 `MEMSYS_AUTH_TOKEN` 当前**未设置** → /add 无需鉴权即 200。
-- 影响：AML 平台无论带不带 Bearer 都能调通，**不存在鉴权不匹配风险**；但端点对公网完全开放（可写）。
-- 处置：9/20 拿到 AML issued key 后，在魔搭设置 `MEMSYS_AUTH_TOKEN = <issued key>`，使 Bearer 鉴权与平台对齐。
-- 注意：改环境变量会触发魔搭重启实例，改动后留 1-2 分钟再测。
+- 线上 `MEMSYS_AUTH_TOKEN` **已设置**（`memsys_sk_d5b9...`，GitHub secret → deploy.yml 同步为魔搭 variable）。
+- 鉴权实测：无凭据/错键 → 401；正确 `X-Api-Key` → 200。**Authorization 头被网关顶掉，不可用**（见 §0.5）。
+- 本地闸门：`test_contract.py` + `test_governance.py` 均已支持 `MEMSYS_TEST_TOKEN`（X-Api-Key + 浏览器 UA），带鉴权双绿。
+- 注意：改环境变量会触发魔搭重启实例，改动后留 2-3 分钟再测。
 
 ### 第二赛周期变化
 
