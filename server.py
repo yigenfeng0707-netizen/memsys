@@ -36,10 +36,14 @@ def check_auth(authorization: Optional[str], x_api_key: Optional[str]) -> None:
     if not AUTH_TOKEN:
         return
     supplied = ""
-    if authorization and authorization.lower().startswith("bearer "):
-        supplied = authorization[7:].strip()
-    elif authorization:
-        supplied = authorization.strip()
+    if authorization:
+        raw = authorization.strip()
+        low = raw.lower()
+        for prefix in ("bearer ", "token "):
+            if low.startswith(prefix):
+                raw = raw[len(prefix):].strip()
+                break
+        supplied = raw
     elif x_api_key:
         supplied = x_api_key.strip()
     if supplied != AUTH_TOKEN:
