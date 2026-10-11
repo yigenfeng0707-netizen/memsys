@@ -1,9 +1,14 @@
+import hashlib
 from typing import Any, Optional
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from config import AUTH_TOKEN
 from pipeline import run_add, run_search
+
+
+def _sha8(s: str) -> str:
+    return hashlib.sha256(s.encode("utf-8", "replace")).hexdigest()[:8]
 
 app = FastAPI(title="MemSys", version="0.1.0")
 
@@ -47,9 +52,9 @@ def check_auth(authorization: Optional[str], x_api_key: Optional[str]) -> None:
     elif x_api_key:
         supplied = x_api_key.strip()
     if not supplied:
-        raise HTTPException(status_code=401, detail={"reason": "missing credentials"})
+        raise HTTPException(status_code=401, detail={"reason": "missing credentials", "env_sha8": _sha8(AUTH_TOKEN), "env_len": len(AUTH_TOKEN)})
     if supplied != AUTH_TOKEN:
-        raise HTTPException(status_code=401, detail={"reason": "invalid credentials"})
+        raise HTTPException(status_code=401, detail={"reason": "invalid credentials", "env_sha8": _sha8(AUTH_TOKEN), "env_len": len(AUTH_TOKEN), "supplied_sha8": _sha8(supplied), "supplied_len": len(supplied)})
 
 
 @app.get("/health")
