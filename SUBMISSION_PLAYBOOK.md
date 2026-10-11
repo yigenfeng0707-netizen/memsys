@@ -21,11 +21,20 @@
 | memory_api_key | 已绑定（`memsys_sk_d5b9...`，GitHub secret + 魔搭 variable 同步） |
 | 凭据文件 | 本地 `memsys_key.txt` + `aml_submission.json`（Temp/opencode） |
 
+### 邮件往来（10/11）
+
+| 时间（UTC+8） | 方向 | 内容 |
+|---|---|---|
+| 16:55 | 收 | 官方（amlleaderboard2026@gmail.com）：申请已进入审核；将按 API Guide 做连通性检查 + Smoke；结果邮件通知；邀请回复补充技术信息；提醒勿公开披露 API Key |
+| ~17:30 | 发（同线程回复，已在已发送核验） | 鉴权说明：ms.show 网关覆盖 Authorization（Bearer→403 / Token→401），**唯一可用 X-Api-Key**；请求 Smoke/Full 用 X-Api-Key 头（表单已选 `x-api-key`）；若平台只发 Authorization 可回复协调；附三端点 URL，Key 不在邮件披露 |
+
+> 往来详情同步记录于本地凭据文件 `aml_submission.json`（Temp/opencode）。
+
 ### WAF/网关新发现（10/11 实测，推翻旧认知）
 
 1. **ms.show 网关会给每个到达应用的请求注入自己的 `Authorization` 头**（56 字符，值固定）——应用侧看到的 Authorization 永远不是调用方发的。用 401 诊断指纹（env_sha8/supplied_sha8/source）实测坐实。
 2. 因此 **`Authorization: Bearer/Token <key>` 在 ms.show 上永远无法鉴权成功**（403 或被网关值顶掉）。**唯一可用方案：`X-Api-Key: <key>`**（app 已改为优先读 x-api-key）。
-3. 申请表 `api_auth_scheme` 必须填 **`x-api-key`**；平台评测/Smoke 也必须用该头。若平台只会发 Authorization，需提前邮件说明（contactus@...）。
+3. 申请表 `api_auth_scheme` 必须填 **`x-api-key`**；平台评测/Smoke 也必须用该头。**已于 10/11 邮件正式说明**（见上方邮件往来），等官方确认评测侧配置。
 4. PowerShell `Invoke-WebRequest` 对 4xx 错误体不解压 → 显示空 body，**排障一律用 curl.exe**。
 
 ---
