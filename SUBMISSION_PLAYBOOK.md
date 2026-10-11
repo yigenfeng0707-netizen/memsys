@@ -1,8 +1,9 @@
 # MemSys 9/20 提交评测执行清单
 
-> **最后更新**：2026-09-03
-> **用途**：9 月 20 日 AML 第二届挑战赛报名开放后，按此清单逐步执行评测提交。
-> **状态**：v0.5 已固化，线上端点已部署，等待 9/20 开放提交。
+> **最后更新**：2026-10-11
+> **用途**：AML 第二届挑战赛报名与评测执行清单（赛期 9/20~10/31，今日已进第 22 天）。
+> **状态**：**未报名**（浏览器历史/知识库/线上 token 三方核验）。v0.7 修复版已部署，等待平台恢复（10/11 全天 522）。
+> **⚠️ 核验记录（10/11）**：Chrome/Edge 历史仅 9/30 各 2-3 次秒级扫访；remio 无 key 记录；线上 AUTH_TOKEN 未设 → 确认未报名。
 
 ---
 
@@ -21,7 +22,7 @@
 | Health URL | `https://gsym236998-memsys-api.ms.show/health` |
 | 鉴权 | Bearer token（`Authorization: Bearer <MEMSYS_AUTH_TOKEN>`） |
 | GitHub 仓库 | https://github.com/yigenfeng0707-netizen/memsys |
-| 提交 commit | `a8f5de2`（v0.5 submission config） |
+| 提交 commit | `66cbd39`（v0.7：日期钳制修复 + key 轮换同步，app 代码 = a8f5de2 + pipeline 时间戳钳制） |
 | 内部模型 | gpt-4o-mini（Add 抽取）+ text-embedding-3-small（向量化） |
 | 本地基线 | LoCoMo 全量 1542 题 · **67.8%**（Official answer=gpt-4o-mini / judge=gpt-4o） |
 | Full 评测次数 | 本期最多 **2 次**，受理后版本冻结 30 天冷却 |
@@ -85,7 +86,7 @@ gh run list --workflow keepalive.yml --limit 3
 git log --oneline a8f5de2 -1
 ```
 
-- [ ] commit `a8f5de2` 存在且内容为 v0.5 submission config
+- [ ] commit `66cbd39` 存在且已推送 origin/main（10/11 经 SSH443 推送成功）
 - [ ] 本地 master 无未 push 的改动影响提交版本
 
 ### 1.4 test_contract.py UA 补丁准备
@@ -144,7 +145,7 @@ exec(open('test_contract.py').read())
 | Auth 方式 | Bearer token |
 | Key 值 | `<AML 发放的 issued key>`（拿到后填入，见 Step B） |
 | 仓库地址 | `https://github.com/yigenfeng0707-netizen/memsys` |
-| 固定版本 commit | `a8f5de2` |
+| 固定版本 commit | `66cbd39` |
 | 内部模型 | gpt-4o-mini + text-embedding-3-small |
 
 **备选端点**（WAF 命中时切换，需魔搭 SDK Token）：
@@ -305,7 +306,7 @@ curl -sS -A "$UA" -H "Authorization: Bearer $TOKEN" -H "Content-Type: applicatio
 > ⚠️ **启动前务必**：
 > - [ ] 截图：端点 health 200
 > - [ ] 截图：Smoke 全绿结果页
-> - [ ] 确认线上代码版本 = commit `a8f5de2`
+> - [ ] 确认线上代码版本 = commit `66cbd39`（部署 run 触发于该 push）
 > - [ ] 确认 AUTH_TOKEN 已设且鉴权生效
 
 **操作**：
@@ -411,9 +412,10 @@ Smoke 全 403？
 
 ### 技术状态
 
-- 本地 Add/Search 实现与官方二期 API 指南**完全对齐**，契约自测 15/15 通过。
-- 线上端点内容 = 本地 v0.5 提交配置（8 个部署文件与远端 main 一致）。
-- 本地基线 67.8% 追平 Mem0 论文报告的 66.9%（gpt-4o-mini 条件下）。
+- 本地 Add/Search 实现与官方二期 API 指南**完全对齐**，契约自测 15/15 通过（10/11 复验）。
+- 线上端点内容 = v0.7 修复版（日期钳制），部署由 10/11 push 自动触发。
+- **API key 已轮换**（9/30 换为 sk-BVxF0...，10/11 已同步回本地 .env）；注意 .env 禁用 PS `Set-Content -Encoding UTF8`（BOM 会使 dotenv 读不到 key）。
+- 本地基线 67.8%（v0.5）；v0.7 子集对照 62.5% vs 62.3%（+0.2，时序 c8 +7.7），全量 10 卷评测 10/11 进行中。
 - 冲奖水平估计 70-75%+，需架构级突破或更强内部模型（后者受合同限制）。
 - 检索侧六轮实验（截断/重排/纯事实/路由/裁剪/agentic）均未突破平台期，92% 错题证据已在返回集内 → 检索不是瓶颈。
 
