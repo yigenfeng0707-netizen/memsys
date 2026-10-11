@@ -41,7 +41,11 @@ def check_auth(authorization: Optional[str], x_api_key: Optional[str]) -> None:
     if not AUTH_TOKEN:
         return
     supplied = ""
-    if authorization:
+    source = "none"
+    if x_api_key:
+        supplied = x_api_key.strip()
+        source = "x-api-key"
+    elif authorization:
         raw = authorization.strip()
         low = raw.lower()
         for prefix in ("bearer ", "token "):
@@ -49,12 +53,11 @@ def check_auth(authorization: Optional[str], x_api_key: Optional[str]) -> None:
                 raw = raw[len(prefix):].strip()
                 break
         supplied = raw
-    elif x_api_key:
-        supplied = x_api_key.strip()
+        source = "authorization"
     if not supplied:
         raise HTTPException(status_code=401, detail={"reason": "missing credentials", "env_sha8": _sha8(AUTH_TOKEN), "env_len": len(AUTH_TOKEN)})
     if supplied != AUTH_TOKEN:
-        raise HTTPException(status_code=401, detail={"reason": "invalid credentials", "env_sha8": _sha8(AUTH_TOKEN), "env_len": len(AUTH_TOKEN), "supplied_sha8": _sha8(supplied), "supplied_len": len(supplied)})
+        raise HTTPException(status_code=401, detail={"reason": "invalid credentials", "env_sha8": _sha8(AUTH_TOKEN), "env_len": len(AUTH_TOKEN), "supplied_sha8": _sha8(supplied), "supplied_len": len(supplied), "source": source, "supplied_head": supplied[:8]})
 
 
 @app.get("/health")

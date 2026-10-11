@@ -18,7 +18,7 @@ def check(name: str, cond: bool, detail: str = "") -> None:
 
 
 def main() -> int:
-    headers = {"Authorization": f"Token {TOKEN}"} if TOKEN else {}
+    headers = {"X-Api-Key": TOKEN} if TOKEN else {}
     headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
     client = httpx.Client(timeout=60, headers=headers)
 
