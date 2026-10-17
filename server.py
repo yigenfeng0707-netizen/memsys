@@ -69,6 +69,17 @@ def check_auth(authorization: Optional[str], x_api_key: Optional[str]) -> None:
     raise HTTPException(status_code=401, detail={"reason": "invalid credentials", "env_sha8": _sha8(AUTH_TOKEN), "env_len": len(AUTH_TOKEN), "supplied_sha8": _sha8(supplied), "supplied_len": len(supplied), "source": source, "supplied_head": supplied[:8]})
 
 
+@app.get("/")
+def root() -> dict:
+    return {
+        "service": "MemSys",
+        "version": app.version,
+        "status": "ok",
+        "endpoints": {"health": "/health", "add": "/add", "search": "/search", "docs": "/docs"},
+        "auth": "X-Api-Key (registered scheme); health and root are unauthenticated GET",
+    }
+
+
 @app.get("/health")
 def health(request: Request, diag: Optional[str] = None) -> dict:
     out: dict = {"status": "ok"}
