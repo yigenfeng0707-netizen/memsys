@@ -24,7 +24,7 @@
 | memory_api_key | 已绑定（`memsys_sk_d5b9...`，GitHub secret + 魔搭 variable 同步） |
 | 凭据文件 | 本地 `memsys_key.txt` + `aml_submission.json`（Temp/opencode） |
 
-### 邮件往来（10/11 提交 → 10/13 技术确认闭环）
+### 邮件往来（10/11 提交 → 10/17 Smoke 403 求助）
 
 | 时间（UTC+8） | 方向 | 内容 |
 |---|---|---|
@@ -34,8 +34,10 @@
 | 10/13 00:23 | 发 | 答复两点：① `GET /health` 免鉴权，任意头/无头均 200；② 鉴权逻辑 X-Api-Key 优先，仅在无 X-Api-Key 时才回退读 Authorization，故网关注入值不影响放行。附三端点，Key 不披露 |
 | 10/13 15:09 | 收 | **官方确认两点均已回应**：Health 免鉴权 GET 无需配凭据；按登记 X-Api-Key 方式核对后续接入。**"API Key 无需通过邮件重复提供，也无需为本次确认重新提交申请"**；如需 Smoke 联调会在本线程联系；**请保持登记端点和参评版本稳定可用** |
 | 10/17 13:24 | 发（同线程回复，已发送核验） | 主动同步：① 三端点今日自检通过（health 200 + 端到端 add/search 全绿），上游 key 轮换并重新部署，keepalive 10 分钟保活；② **请求在 Smoke 前把绑定版本 v0.5 更正为 v0.7-e158c66**（或告知由我方平台侧 `Add Version` 的流程）；③ 随时可安排 Smoke 联调；附三端点 + `api_auth_scheme=x-api-key`，**Key 未披露**。截图归档 `佐证附件/操作记录/20261017_qq_*.png` |
+| 10/17 15:52 | 发（同线程回复，已发送核验：已发送置顶 35K/刚刚） | **Smoke 403 求助**：① 自助 Smoke Job `teval_5bf67e7f46f309fd`（Run label smoke-1017，Textual，mode=smoke，14:02）3 秒失败 `ADD_ACCESS_DENIED · HTTP 403`，TASKS 0/1；已自行 `Add Version` 绑定 **v0.7-e158c66**，13:24 的版本更正请求就此解决；② 根因 = ms.show 前置网关 Code `10010101007` 按 User-Agent 拦截（矩阵实测：python-*/curl/空 UA→403 连 GET /health 也拦；aiohttp/urllib3/浏览器 UA→放行；X-Api-Key 全程放行、与鉴权无关；网关只改写不校验 Authorization）；③ 请求：查该 Job 的 UA，若为 python 默认/空 UA 请改为非拦截值（例 `MemEval-Worker/1.0`），改后回信我方立即重跑（配额 15:02 起恢复）；三端点稳定在线、仍登记 x-api-key、**Key 不入邮件**。截图 `20261017_qq_{compose_filled,before_send,after_send}.png` |
 
-> **最新状态 = 等 Smoke 通知**（截至 10/17 13:24，邮箱搜索 `amlleaderboard` 共 **8 封**，末封为我方 10/17 13:24 回复，仍无 Smoke 结果信）。
+> **最新状态 = 等官方回信改 UA**（截至 10/17 15:53，邮箱搜索 `amlleaderboard` 共 **9 封**，末封为我方 10/17 15:52 的 403 求助信；平台侧证据链：`teval_5bf67e7f46f309fd` 失败截图 `20261017_aml_smoke_job.png`，UA 矩阵结论见下方「应急：WAF 拦截处置」）。
+> **自助评测链路**：Eval Key 已取回（仅存 sessionStorage/临时文件）→ `/evaluation` 可进 → `Add Version` 已绑 v0.7-e158c66 → 表单/确认弹窗/Job 生成全流程跑通；Smoke 配额 1 次/小时、每赛道 ≤30 次，Full gate 0/8 待 smoke 过线解锁。
 > 往来详情同步记录于本地凭据文件 `aml_submission.json`（Temp/opencode）。
 
 ### ⚠️ 历史申请冲突（10/17 发现，待澄清）
