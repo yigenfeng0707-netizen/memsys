@@ -1,9 +1,12 @@
 # MemSys 9/20 提交评测执行清单
 
-> **最后更新**：2026-10-11
-> **用途**：AML 第二届挑战赛报名与评测执行清单（赛期 9/20~10/31，今日已进第 22 天）。
-> **状态**：**报名申请已提交（pending）**——2026-10-11 16:55（UTC+8）经平台源站 8088 旁路提交，`request_id=request_676a7115ff6b4acc9bc4`，审批通知将发至 fengyigen@qq.com。等审批后走 Smoke → Full。
-> **⚠️ 核验记录（10/11 上午）**：Chrome/Edge 历史仅 9/30 各 2-3 次秒级扫访；remio 无 key 记录；线上 AUTH_TOKEN 未设 → 确认此前从未报名。
+> **最后更新**：2026-10-17
+> **用途**：AML 第二届挑战赛报名与评测执行清单（赛期 9/20~10/31，今日已进第 28 天）。
+> **状态**：**审核中——技术确认已闭环，等官方 Smoke 联调通知**。`request_id=request_676a7115ff6b4acc9bc4`。
+> 官方 10/13 15:09 明确：登记的 **X-Api-Key 方式被接受**，Health 免鉴权确认，**Key 无需再提供、无需重新提交申请**；
+> 如需 Smoke 联调会在原邮件线程联系——**当前是被动等通知，端点必须持续可用**。
+> **⚠️ 与旧核验冲突（10/17 邮箱查证）**：10/3 00:44 已有一封"审核通过"邮件（MemSys **v0.5**，发放 LDBD Key，长期有效），
+> 说明 9/30 曾提交过一次申请（`request_45c56272312749e4a30e`）——与下方 10/11"确认此前从未报名"的核验结论**矛盾**，待澄清两份申请的关系。
 
 ---
 
@@ -13,7 +16,7 @@
 |---|---|
 | 提交方式 | `POST http://47.112.15.137:8088/evaluation-access-requests`（源站直连，绕开 522 的 CF 前置） |
 | request_id | `request_676a7115ff6b4acc9bc4` |
-| request_token | `gy5Ktynb6I8Sn8gK5CF9FuISjixF60x7iQ-czKB2_Eg`（查询/关联用，勿丢） |
+| request_token | **不落盘**（本仓库 PUBLIC）。存于本地凭据文件 `%TEMP%\opencode\aml_submission.json` → 字段 `request_token` |
 | 状态 | `pending`，`notification_status=sent`（通知已发邮箱） |
 | 赛道/组别 | academic / participant_api |
 | 版本 | v0.7-e158c66 |
@@ -21,20 +24,64 @@
 | memory_api_key | 已绑定（`memsys_sk_d5b9...`，GitHub secret + 魔搭 variable 同步） |
 | 凭据文件 | 本地 `memsys_key.txt` + `aml_submission.json`（Temp/opencode） |
 
-### 邮件往来（10/11）
+### 邮件往来（10/11 提交 → 10/13 技术确认闭环）
 
 | 时间（UTC+8） | 方向 | 内容 |
 |---|---|---|
-| 16:55 | 收 | 官方（amlleaderboard2026@gmail.com）：申请已进入审核；将按 API Guide 做连通性检查 + Smoke；结果邮件通知；邀请回复补充技术信息；提醒勿公开披露 API Key |
-| ~17:30 | 发（同线程回复，已在已发送核验） | 鉴权说明：ms.show 网关覆盖 Authorization（Bearer→403 / Token→401），**唯一可用 X-Api-Key**；请求 Smoke/Full 用 X-Api-Key 头（表单已选 `x-api-key`）；若平台只发 Authorization 可回复协调；附三端点 URL，Key 不在邮件披露 |
+| 10/11 16:55 | 收 | 官方（amlleaderboard2026@gmail.com）：申请已进入审核；将按 API Guide 做连通性检查 + Smoke；结果邮件通知；邀请回复补充技术信息；提醒勿公开披露 API Key |
+| 10/11 ~17:30 | 发（同线程回复，已在已发送核验） | 鉴权说明：ms.show 网关覆盖 Authorization（Bearer→403 / Token→401），**唯一可用 X-Api-Key**；请求 Smoke/Full 用 X-Api-Key 头（表单已选 `x-api-key`）；若平台只发 Authorization 可回复协调；附三端点 URL，Key 不在邮件披露 |
+| 10/12 23:03 | 收 | 官方：已核对申请，**登记的鉴权方式确为 x-api-key**，三地址一致；**平台评测链路支持此方式**（并非只能 Authorization），后续将按登记配置用 X-Api-Key 头携带密钥；反问两点：Health 是否也接受 X-Api-Key 或免鉴权？应用侧会不会因网关注入的 Authorization 拒绝已通过 X-Api-Key 的请求？ |
+| 10/13 00:23 | 发 | 答复两点：① `GET /health` 免鉴权，任意头/无头均 200；② 鉴权逻辑 X-Api-Key 优先，仅在无 X-Api-Key 时才回退读 Authorization，故网关注入值不影响放行。附三端点，Key 不披露 |
+| 10/13 15:09 | 收 | **官方确认两点均已回应**：Health 免鉴权 GET 无需配凭据；按登记 X-Api-Key 方式核对后续接入。**"API Key 无需通过邮件重复提供，也无需为本次确认重新提交申请"**；如需 Smoke 联调会在本线程联系；**请保持登记端点和参评版本稳定可用** |
 
+> **最新状态 = 等 Smoke 通知**（截至 10/17 邮箱搜索 `amlleaderboard` 共 7 封，末封为 10/13，无 Smoke 结果信）。
 > 往来详情同步记录于本地凭据文件 `aml_submission.json`（Temp/opencode）。
+
+### ⚠️ 历史申请冲突（10/17 发现，待澄清）
+
+| 日期 | 事件 | 证据 |
+|---|---|---|
+| 09/30 07:14 (UTC) | 申请 `request_45c56272312749e4a30e`，MemSys **v0.5** 进入审核 | 邮箱 9/30 收件 |
+| **10/3 00:44** | **审核通过**，发放 **LDBD Key**（`ldbd_sk_...`，长期有效），"按 API Guide 配置 Add/Search 并使用该密钥评测" | 邮箱 10/3 收件 |
+| 10/11 16:55 | 第二次申请 `request_676a7115ff6b4acc9bc4`（v0.7）进入审核 | 邮箱 10/11 收件 |
+
+- 10/11 的"从未报名"核验（凭浏览器历史 + remio + 线上 token 未设）**与 10/3 审核通过邮件矛盾**——当时线上 token 未设，说明 v0.5 那次并未真正接入。
+- ~~若平台发 `ldbd_sk_...` 会 401 → 让应用接受两把 Key~~ **已排除**：见下方"平台侧状态"，平台调我们用的是 Memory System Key，不是 Eval Key。
+
+### 平台侧状态（2026-10-17 实查，浏览器会话直连平台 API）
+
+**两把 Key 的官方分工**（`/api-guide` → "Eval Key and Memory System Key" 表）：
+
+| 凭据 | 谁提供 | 用途 |
+|---|---|---|
+| **Eval Key / Leaderboard Key**（`ldbd_sk_...`，10/3 邮件发放） | AML | 验证参赛者访问、**发起评测**、解锁私有结果 |
+| **Memory System Key**（`memsys_sk_d5b9...`，表单绑定） | 参赛者 | 平台调用我们的 Add/Search |
+
+> ⇒ 平台调我们用的是 Memory System Key，**不存在"平台发 ldbd Key 导致 401"的风险**（原风险条目作废）。
+> 浏览器会话里已有 Eval Key（`sessionStorage["leaderboard.evalAccessKey"]`），可直接读平台状态。
+
+**实查结果**（同源 fetch，header `X-Leaderboard-Api-Key`）：
+
+| 端点 | 返回 |
+|---|---|
+| `GET /access/versions` | **仅 1 个版本 `v0.5`**（`version_187ae9a3981a`，created 2026-10-02 16:44 UTC，active），绑定的 Add/Search = 我们线上地址；`version_binding.allowed=true`（无冷却） |
+| `GET /eval-jobs/recent` | `{"jobs":[]}` |
+| `GET /eval-jobs/active` | `{"jobs":[]}` |
+| `GET /eval-results/private` | `{"results":[]}` |
+| `GET /evaluation-access-requests` | 403 `key issuing requires an admin leaderboard key` → **申请状态平台侧不可查，只能等邮件** |
+
+**⚠️ 版本名错配（新风险，优先于其他待办）**：绑定版本叫 **v0.5**，线上跑的是 **v0.7-e158c66**。
+审批通过后若直接用这个 v0.5 绑定跑 Smoke/Full，评的是 v0.7 代码却挂 v0.5 的名——违反 §Step F"线上代码版本 = 提交 commit"。
+**处置：审批通过后先点 `Add Version` 登记 v0.7-e158c66，再跑 Smoke。**
+
+**配额事实（平台页原文）**：每赛道 2 次 Full；"The second Full run unlocks 30 days after the first Full run is completed."
+→ 结合 10/31 提交截止 + 11/04 队列终止，**第二次 Full 实际排不上，等同只有 1 次机会**；Full 官方时长约 0.5~5 天。
 
 ### WAF/网关新发现（10/11 实测，推翻旧认知）
 
 1. **ms.show 网关会给每个到达应用的请求注入自己的 `Authorization` 头**（56 字符，值固定）——应用侧看到的 Authorization 永远不是调用方发的。用 401 诊断指纹（env_sha8/supplied_sha8/source）实测坐实。
 2. 因此 **`Authorization: Bearer/Token <key>` 在 ms.show 上永远无法鉴权成功**（403 或被网关值顶掉）。**唯一可用方案：`X-Api-Key: <key>`**（app 已改为优先读 x-api-key）。
-3. 申请表 `api_auth_scheme` 必须填 **`x-api-key`**；平台评测/Smoke 也必须用该头。**已于 10/11 邮件正式说明**（见上方邮件往来），等官方确认评测侧配置。
+3. 申请表 `api_auth_scheme` 必须填 **`x-api-key`**；平台评测/Smoke 也必须用该头。**10/11 已邮件说明，10/12~10/13 官方书面确认接受**（见上方邮件往来）——该风险已解除。
 4. PowerShell `Invoke-WebRequest` 对 4xx 错误体不解压 → 显示空 body，**排障一律用 curl.exe**。
 
 ---
