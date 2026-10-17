@@ -37,6 +37,8 @@
 | 10/17 15:52 | 发（同线程回复，已发送核验：已发送置顶 35K/刚刚） | **Smoke 403 求助**：① 自助 Smoke Job `teval_5bf67e7f46f309fd`（Run label smoke-1017，Textual，mode=smoke，14:02）3 秒失败 `ADD_ACCESS_DENIED · HTTP 403`，TASKS 0/1；已自行 `Add Version` 绑定 **v0.7-e158c66**，13:24 的版本更正请求就此解决；② 根因 = ms.show 前置网关 Code `10010101007` 按 User-Agent 拦截（矩阵实测：python-*/curl/空 UA→403 连 GET /health 也拦；aiohttp/urllib3/浏览器 UA→放行；X-Api-Key 全程放行、与鉴权无关；网关只改写不校验 Authorization）；③ 请求：查该 Job 的 UA，若为 python 默认/空 UA 请改为非拦截值（例 `MemEval-Worker/1.0`），改后回信我方立即重跑（配额 15:02 起恢复）；三端点稳定在线、仍登记 x-api-key、**Key 不入邮件**。截图 `20261017_qq_{compose_filled,before_send,after_send}.png` |
 
 > **最新状态 = 等官方回信改 UA**（截至 10/17 15:53，邮箱搜索 `amlleaderboard` 共 **9 封**，末封为我方 10/17 15:52 的 403 求助信；平台侧证据链：`teval_5bf67e7f46f309fd` 失败截图 `20261017_aml_smoke_job.png`，UA 矩阵结论见下方「应急：WAF 拦截处置」）。
+> **403 归因实锤（10/17 16:0x 补）**：`server.py`/`config.py` **不存在任何 403 响应路径**（鉴权失败一律 401，`GET /evaluation-access-requests` 的 403 是平台侧返回）→ Job 记录的 `HTTP 403` 只能来自 ms.show 网关层，**平台 worker 请求未达应用**为排除法结论；平台 job 详情/`View Endpoints`/API Guide/docs 均无 UA 或请求回显，bound endpoints 为我方 ms.show 直连（无中继），故 worker UA 只能由官方日志侧确认。
+> **Smoke 第 2 次（10/17 16:32，用户授权试探）**：Job `teval_0f3d724cc97fde83`（Run `smoke-1017b`，Textual，v0.7-e158c66，16/16，TopK 100）2 秒失败，**同 `ADD_ACCESS_DENIED · HTTP 403`、0/1 tasks** → 失败模式未变，官方尚无动作（去信 40 分钟）；Track smoke 配额 2/30。平台新增观察点：job 详情有 **Resume latest interrupted job**（checkpoint 恢复）与「Failed attempts (1) 仍计一次评测结果」，官方改 UA 后优先 Resume 恢复。截图 `20261017_aml_{confirm_modal_b,poll_b*,smoke_job_b}.png`。
 > **自助评测链路**：Eval Key 已取回（仅存 sessionStorage/临时文件）→ `/evaluation` 可进 → `Add Version` 已绑 v0.7-e158c66 → 表单/确认弹窗/Job 生成全流程跑通；Smoke 配额 1 次/小时、每赛道 ≤30 次，Full gate 0/8 待 smoke 过线解锁。
 > 往来详情同步记录于本地凭据文件 `aml_submission.json`（Temp/opencode）。
 
