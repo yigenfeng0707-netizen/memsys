@@ -8,6 +8,10 @@ import httpx
 BASE = os.environ.get("MEMSYS_TEST_BASE", "http://127.0.0.1:8790")
 TOKEN = os.environ.get("MEMSYS_TEST_TOKEN", "")
 DB = os.environ.get("MEMSYS_TEST_DB", os.path.join(os.path.dirname(__file__), "data", "memories.db"))
+# BASE 指向远端时，本地 data/memories.db 里不会有本次写入的数据 —— 跳过 DB 断言，避免假 FAIL。
+# 需要强制走 DB 断言：显式设置 MEMSYS_TEST_DB。
+REMOTE = BASE.rstrip("/").split("//", 1)[-1].split("/", 1)[0] not in ("127.0.0.1:8790", "localhost:8790", "127.0.0.1", "localhost")
+DB_FORCED = "MEMSYS_TEST_DB" in os.environ
 
 failures: list[str] = []
 
@@ -45,16 +49,20 @@ def main() -> int:
     r2 = client.post(f"{BASE}/add", json={"request_id": f"{uid}:c1", "messages": s2, "user_id": uid, "session_id": f"{uid}:s1"})
     check("add session-2 ok", r2.status_code == 200)
 
-    con = sqlite3.connect(DB)
-    rows = con.execute(
-        "SELECT kind, COUNT(*), SUM(CASE WHEN superseded_by IS NOT NULL THEN 1 ELSE 0 END) FROM memories WHERE user_id=? GROUP BY kind",
-        (uid,),
-    ).fetchall()
-    kinds = {r[0]: (r[1], r[2] or 0) for r in rows}
-    print(f"    memory kinds: {kinds}")
-    extracted_total = sum(v[0] for k, v in kinds.items() if k != "chunk")
-    check("facts extracted", extracted_total >= 3, str(kinds))
-    check("supersede chain exists", any(v[1] > 0 for v in kinds.values()))
+    if REMOTE and not DB_FORCED:
+        print("[SKIP] facts extracted / supersede chain exists  (BASE 为远端，本地 DB 无本次数据；设 MEMSYS_TEST_DB 可启用)")
+    else:
+        con = sqlite3.connect(DB)
+        rows = con.execute(
+            "SELECT kind, COUNT(*), SUM(CASE WHEN superseded_by IS NOT NULL THEN 1 ELSE 0 END) FROM memories WHERE user_id=? GROUP BY kind",
+            (uid,),
+        ).fetchall()
+        con.close()
+        kinds = {r[0]: (r[1], r[2] or 0) for r in rows}
+        print(f"    memory kinds: {kinds}")
+        extracted_total = sum(v[0] for k, v in kinds.items() if k != "chunk")
+        check("facts extracted", extracted_total >= 3, str(kinds))
+        check("supersede chain exists", any(v[1] > 0 for v in kinds.values()))
 
     def search(query: str) -> list[str]:
         resp = client.post(f"{BASE}/search", json={"query": query, "user_id": uid, "top_k": 100})
