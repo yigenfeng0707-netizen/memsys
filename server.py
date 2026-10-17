@@ -1,14 +1,18 @@
 import hashlib
 from typing import Any, Optional
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from config import AUTH_TOKEN
+from config import AUTH_TOKEN, AUTH_TOKEN_EXTRA, AUTH_SHA256_EXTRA
 from pipeline import run_add, run_search
 
 
 def _sha8(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8", "replace")).hexdigest()[:8]
+
+
+def _sha256(s: str) -> str:
+    return hashlib.sha256(s.encode("utf-8", "replace")).hexdigest()
 
 app = FastAPI(title="MemSys", version="0.1.0")
 
@@ -38,7 +42,7 @@ class SearchRequest(BaseModel):
 
 
 def check_auth(authorization: Optional[str], x_api_key: Optional[str]) -> None:
-    if not AUTH_TOKEN:
+    if not AUTH_TOKEN and not AUTH_TOKEN_EXTRA and not AUTH_SHA256_EXTRA:
         return
     supplied = ""
     source = "none"
@@ -56,13 +60,27 @@ def check_auth(authorization: Optional[str], x_api_key: Optional[str]) -> None:
         source = "authorization"
     if not supplied:
         raise HTTPException(status_code=401, detail={"reason": "missing credentials", "env_sha8": _sha8(AUTH_TOKEN), "env_len": len(AUTH_TOKEN)})
-    if supplied != AUTH_TOKEN:
-        raise HTTPException(status_code=401, detail={"reason": "invalid credentials", "env_sha8": _sha8(AUTH_TOKEN), "env_len": len(AUTH_TOKEN), "supplied_sha8": _sha8(supplied), "supplied_len": len(supplied), "source": source, "supplied_head": supplied[:8]})
+    if supplied == AUTH_TOKEN:
+        return
+    if supplied in AUTH_TOKEN_EXTRA:
+        return
+    if _sha256(supplied) in AUTH_SHA256_EXTRA:
+        return
+    raise HTTPException(status_code=401, detail={"reason": "invalid credentials", "env_sha8": _sha8(AUTH_TOKEN), "env_len": len(AUTH_TOKEN), "supplied_sha8": _sha8(supplied), "supplied_len": len(supplied), "source": source, "supplied_head": supplied[:8]})
 
 
 @app.get("/health")
-def health() -> dict:
-    return {"status": "ok"}
+def health(request: Request, diag: Optional[str] = None) -> dict:
+    out: dict = {"status": "ok"}
+    if diag == "1":
+        rows = []
+        for name, value in request.headers.items():
+            row = {"name": name, "len": len(value), "sha256_16": _sha256(value)[:16]}
+            if name.lower() in ("authorization", "x-api-key"):
+                row["sha256"] = _sha256(value)
+            rows.append(row)
+        out["diag"] = rows
+    return out
 
 
 @app.post("/add")

@@ -20,6 +20,8 @@ DISABLE_THINKING = NO_THINKING
 
 DB_PATH = Path(os.environ.get("MEMSYS_DB", BASE_DIR / "data" / "memories.db"))
 AUTH_TOKEN = os.environ.get("MEMSYS_AUTH_TOKEN", "").strip()
+AUTH_TOKEN_EXTRA = [t for t in (p.strip() for p in os.environ.get("MEMSYS_AUTH_TOKEN_EXTRA", "").split(",")) if t]
+AUTH_SHA256_EXTRA = [t.lower() for t in (p.strip() for p in os.environ.get("MEMSYS_AUTH_SHA256_EXTRA", "").split(",")) if t]
 PORT = int(os.environ.get("MEMSYS_PORT", "8790"))
 
 CHUNK_MAX_CHARS = 1500

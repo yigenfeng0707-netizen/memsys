@@ -55,6 +55,7 @@ jobs:
           MS_TOKEN: ${{ secrets.MODELSCOPE_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           MEMSYS_AUTH_TOKEN: ${{ secrets.MEMSYS_AUTH_TOKEN }}
+          MEMSYS_AUTH_SHA256_EXTRA: ${{ secrets.MEMSYS_AUTH_SHA256_EXTRA }}
         run: |
           set -e
           BASE="https://modelscope.cn/openapi/v1/studios/$OWNER/$REPO"
@@ -109,6 +110,12 @@ jobs:
             upsert_var "MEMSYS_AUTH_TOKEN" "$MEMSYS_AUTH_TOKEN"
           else
             echo "MEMSYS_AUTH_TOKEN not set - endpoint will be open (no auth)"
+          fi
+
+          if [ -n "$MEMSYS_AUTH_SHA256_EXTRA" ]; then
+            upsert_var "MEMSYS_AUTH_SHA256_EXTRA" "$MEMSYS_AUTH_SHA256_EXTRA"
+          else
+            echo "MEMSYS_AUTH_SHA256_EXTRA not set (no gateway hash whitelist yet)"
           fi
 
           upsert_var "OPENAI_BASE_URL" "https://api.openai-next.com/v1"
