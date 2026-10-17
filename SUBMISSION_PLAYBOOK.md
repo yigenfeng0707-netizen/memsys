@@ -77,6 +77,17 @@
 **配额事实（平台页原文）**：每赛道 2 次 Full；"The second Full run unlocks 30 days after the first Full run is completed."
 → 结合 10/31 提交截止 + 11/04 队列终止，**第二次 Full 实际排不上，等同只有 1 次机会**；Full 官方时长约 0.5~5 天。
 
+### 10/17 线上运维与验证（key 轮换 → 部署 → 端到端复核）
+
+| 项 | 结果 |
+|---|---|
+| 背景 | 原 `OPENAI_API_KEY`（`sk-BVxF0…`）被中转站判 401 Invalid token，本地全量评测中断 |
+| 换 key | 改用 opennext `apikey3`（`sk-RdA8l6…`）；`gh secret set OPENAI_API_KEY`（2026-10-17T04:51Z） |
+| 部署 | push `3771f36`（eval 增加 5xx 重试）触发 `Deploy to ModelScope Studio` run `39004164813` → **success**，workflow 自动 upsert `OPENAI_API_KEY` 变量 |
+| 端到端 | 浏览器 UA + 本地 `memsys_key.txt`（42 位，与线上 `env_len=42` 吻合）跑 `test_contract.py` 打 `gsym236998-memsys-api.ms.show` → **15/15 PASS**（/add 事实抽取 + /search 向量检索均走新 key） |
+| 转发佐证 | 带错误 `X-Api-Key` 打 `/search` 返回应用自身 401 detail（`env_sha8=15335b28`、`source=x-api-key`）→ 网关放行正常；裸 curl/httpx UA 仍 403 → **WAF 行为未变**（下方小节继续有效） |
+| 状态 | **端点可用性恢复**，等 Smoke 期间依赖 keepalive 维持；旧 key（`sk-BVxF0…`）已作废 |
+
 ### WAF/网关新发现（10/11 实测，推翻旧认知）
 
 1. **ms.show 网关会给每个到达应用的请求注入自己的 `Authorization` 头**（56 字符，值固定）——应用侧看到的 Authorization 永远不是调用方发的。用 401 诊断指纹（env_sha8/supplied_sha8/source）实测坐实。
