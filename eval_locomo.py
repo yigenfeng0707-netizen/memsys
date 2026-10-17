@@ -187,13 +187,32 @@ async def ingest_conversation(client: httpx.AsyncClient, conv: dict, sample_id: 
         if not messages:
             continue
         rid = f"locomo:{sample_id}:session_{i}"
-        resp = await client.post(
+        await post_retry(
+            client,
             "http://127.0.0.1:8790/add",
-            json={"request_id": rid, "messages": messages, "user_id": f"locomo:{sample_id}", "session_id": rid},
+            {"request_id": rid, "messages": messages, "user_id": f"locomo:{sample_id}", "session_id": rid},
         )
-        resp.raise_for_status()
         n_sessions += 1
     print(f"[ingest] {sample_id}: {n_sessions} sessions done")
+
+
+async def post_retry(client: httpx.AsyncClient, url: str, payload: dict, retries: int = 5) -> httpx.Response:
+    for attempt in range(retries):
+        try:
+            sr = await client.post(url, json=payload)
+            sr.raise_for_status()
+            return sr
+        except (httpx.HTTPStatusError, httpx.TransportError) as exc:
+            status = exc.response.status_code if isinstance(exc, httpx.HTTPStatusError) else 0
+            if attempt == retries - 1 or (status and status < 500):
+                raise
+            await asyncio.sleep(2 * (attempt + 1))
+    raise RuntimeError("unreachable")
+
+
+async def post_search(client: httpx.AsyncClient, payload: dict) -> list[dict]:
+    sr = await post_retry(client, "http://127.0.0.1:8790/search", payload)
+    return sr.json().get("data", [])
 
 
 async def answer_and_judge(client: httpx.AsyncClient, llm: LLM, sem: asyncio.Semaphore, qa_list, sample_id, spk_a, spk_b, out_answers: Path, out_results: Path):
@@ -208,12 +227,7 @@ async def answer_and_judge(client: httpx.AsyncClient, llm: LLM, sem: asyncio.Sem
         gold = str(qa.get("answer", "") or "")
         async with sem:
             if qid not in done_ans:
-                sr = await client.post(
-                    "http://127.0.0.1:8790/search",
-                    json={"query": question, "user_id": f"locomo:{sample_id}", "top_k": TOP_K},
-                )
-                sr.raise_for_status()
-                data = sr.json().get("data", [])
+                data = await post_search(client, {"query": question, "user_id": f"locomo:{sample_id}", "top_k": TOP_K})
                 a_mem, b_mem = [], []
                 for d in data:
                     sa, sb = split_by_speaker(d["content"], spk_a, spk_b)
