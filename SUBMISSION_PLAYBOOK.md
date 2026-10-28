@@ -1,8 +1,8 @@
 # MemSys 9/20 提交评测执行清单
 
-> **最后更新**：2026-10-17
-> **用途**：AML 第二届挑战赛报名与评测执行清单（赛期 9/20~10/31，今日已进第 28 天）。
-> **状态**：**审核中——技术确认已闭环，等官方 Smoke 联调通知**。`request_id=request_676a7115ff6b4acc9bc4`。
+> **最后更新**：2026-10-28（第 1 轮续跑盘点）
+> **用途**：AML 第二届挑战赛报名与评测执行清单（赛期 9/20~10/31，今日为第 39 天：提交截止前第 4 天 / 评测队列终止前第 8 天）。
+> **状态**：**审核中——10/19 官方两封回信（后台登记显示"免鉴权、未绑定 Key、Health 未登记"）→ 我方 10/19 14:23 已逐项答复，等官方完成登记修复后通知重跑 Smoke**。`request_id=request_676a7115ff6b4acc9bc4`。
 > 官方 10/13 15:09 明确：登记的 **X-Api-Key 方式被接受**，Health 免鉴权确认，**Key 无需再提供、无需重新提交申请**；
 > 如需 Smoke 联调会在原邮件线程联系——**当前是被动等通知，端点必须持续可用**。
 > **⚠️ 与旧核验冲突（10/17 邮箱查证）**：10/3 00:44 已有一封"审核通过"邮件（MemSys **v0.5**，发放 LDBD Key，长期有效），
@@ -36,6 +36,8 @@
 | 10/17 13:24 | 发（同线程回复，已发送核验） | 主动同步：① 三端点今日自检通过（health 200 + 端到端 add/search 全绿），上游 key 轮换并重新部署，keepalive 10 分钟保活；② **请求在 Smoke 前把绑定版本 v0.5 更正为 v0.7-e158c66**（或告知由我方平台侧 `Add Version` 的流程）；③ 随时可安排 Smoke 联调；附三端点 + `api_auth_scheme=x-api-key`，**Key 未披露**。截图归档 `佐证附件/操作记录/20261017_qq_*.png` |
 | 10/17 15:52 | 发（同线程回复，已发送核验：已发送置顶 35K/刚刚） | **Smoke 403 求助**：① 自助 Smoke Job `teval_5bf67e7f46f309fd`（Run label smoke-1017，Textual，mode=smoke，14:02）3 秒失败 `ADD_ACCESS_DENIED · HTTP 403`，TASKS 0/1；已自行 `Add Version` 绑定 **v0.7-e158c66**，13:24 的版本更正请求就此解决；② 根因 = ms.show 前置网关 Code `10010101007` 按 User-Agent 拦截（矩阵实测：python-*/curl/空 UA→403 连 GET /health 也拦；aiohttp/urllib3/浏览器 UA→放行；X-Api-Key 全程放行、与鉴权无关；网关只改写不校验 Authorization）；③ 请求：查该 Job 的 UA，若为 python 默认/空 UA 请改为非拦截值（例 `MemEval-Worker/1.0`），改后回信我方立即重跑（配额 15:02 起恢复）；三端点稳定在线、仍登记 x-api-key、**Key 不入邮件**。截图 `20261017_qq_{compose_filled,before_send,after_send}.png` |
 | 10/17 19:51 | 发（同线程回复，已发送核验：已发送箱置顶「刚刚」，to amlleaderboard2026） | **改绑请求（双轨信）**：① 平台自助改绑被 **409 `endpoint is immutable for this leaderboard key`** 拒绝（View Endpoints 只读）→ 需贵方后台操作；② 提供已验证备选：**FC 中继** `https://memsys-relay-nhqpnszxog.cn-hangzhou.fcapp.run`（改写 UA 绕 Code 10010101007、X-Api-Key 透传、鉴权不变、e2e 6/6）；③ 请求二选一：**A** 修 worker UA（重申 15:52）或 **B** 后台把 Add/Search 改绑为中继 `/add`、`/search`；任一落地即重跑 Smoke（配额 2/30）；Key 不入邮件。截图 `20261017_qq2_{compose_filled,before_send,after_send}.png` |
+| 10/19 12:01/12:02 | 收 | 官方两封回信（Re:【Agent Memory Leaderboard】您的评测申请已收到）：后台登记显示**"免鉴权、未绑定 Key、Health 未登记"**，要求核对（原邮件全文待邮箱补档；佐证 = 我方复信逐条引用 + `20261019_qq3_after_send.png` 收件箱列表可见两封 12:01/12:02） |
+| 10/19 14:23 | 发（同线程回复，已发送核验） | **逐项答复**：① 自检地址与登记完全一致、Add/Search 均带 X-Api-Key、403 为网关按 UA 拦截（10010101007）且发生在鉴权之前；② 登记鉴权方式确为 x-api-key、Key 已绑定申请表（邮件不披露），Health 可补登记为免鉴权 GET；③ **A 修 worker UA / B 后台改绑 FC 中继，任一落地即配合重跑 Smoke，配额按官方节奏、我方不主动消耗**。正文 `20261019_outbound_reply.txt`，截图 `20261019_qq3_{compose_filled,after_send}.png`（10/28 自 `.tmp` 补归档） |
 
 > **魔搭 UA 豁免工单（10/17 17:39，已发送核验）**：新邮件致 `contact@modelscope.ai`（魔搭页脚「联系我们」唯一官方渠道，无表单工单系统），主题「创空间域名 gsym236998-memsys-api.ms.show 被 WAF 按 User-Agent 拦截（Code 10010101007），申请豁免/咨询合规接入」，正文 `.tmp/ms_body.txt`：现象 + UA 矩阵 + 诉求（域名 UA 豁免 / 白名单申请方式 / 合规接入建议），**不含任何 Key**。截图 `20261017_ms_{ticket_compose,before_send,after_send,sent_verify}.png`。
 >
@@ -49,6 +51,12 @@
 >
 > **自绑换端点被平台拒绝（10/17 19:0x，实锤）**：`POST /access/versions` → **409** `{"detail":{"reason":"endpoint is immutable for this leaderboard key"}}`；`View Endpoints` 弹窗只读（仅 Copy），版本下拉仅 `v0.5 / v0.7-e158c66` → **同一 leaderboard key 下端点不可自助更换**（Add Version 只能新增版本名，URL 必须仍指向 ms.show 直连）。取证 `20261017_aml_{bind_409_immutable,bound_endpoints_readonly}.png`。
 > → **解锁只剩两条路**：A. 官方修复 worker UA（15:52 已去信）；B. 官方**后台改绑**端点到中继 URL（**19:51 已发双轨信**，A+B 同信请求）。二者落地前 smoke 不重跑以省配额（当前 Track smoke 2/30、1 次/小时）——**现在是双路等回信状态**。
+>
+> **10/28 续跑实测（第 1 轮续跑盘点）**：
+> ① `GET /health`（浏览器 UA）→ `200 {"status":"ok"}`，实例存活；裸 UA → `403`，**WAF 规则未变**；
+> ② **FC 中继实测宕机**：`https://memsys-relay-nhqpnszxog.cn-hangzhou.fcapp.run/health` → `AccessDenied: Current user is in debt`（阿里云账户欠费）——**方案 B 在清欠前不可用**，当前只剩方案 A（官方修 worker UA）一条路；
+> ③ 10/19 证据补归档：`.tmp/aml_reply.txt` → `佐证附件/操作记录/20261019_outbound_reply.txt`，2 张截图 → `20261019_qq3_{compose_filled,after_send}.png`（此前散落临时目录，未提交过仓库）；
+> ④ 倒计时压力：Full 官方耗时 0.5~5 天 + 第二次 Full 因 30 天冷却实际排不上 → **Smoke 须 ~48h 内过线、Full 最晚 10/30 前启动**，否则赶不上 11/04 队列终止。
 
 ### ⚠️ 历史申请冲突（10/17 发现，待澄清）
 
