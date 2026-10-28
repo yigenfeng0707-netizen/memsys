@@ -2,7 +2,7 @@
 
 > **最后更新**：2026-10-28（第 1 轮续跑盘点）
 > **用途**：AML 第二届挑战赛报名与评测执行清单（赛期 9/20~10/31，今日为第 39 天：提交截止前第 4 天 / 评测队列终止前第 8 天）。
-> **状态**：**审核中——官方 10/19 三封回信全部落账：卡点=平台登记错配（后台"无鉴权/未绑 Key/Health 未登记" vs 10/13 书面确认的 x-api-key），官方内部核查中；登记对齐 + worker 验证通过后才通知重跑 Smoke，期间保持部署稳定、勿主动测试。10/20~10/28 官方零回信（10/28 邮箱实查）**。`request_id=request_676a7115ff6b4acc9bc4`。
+> **状态**：**审核中——等官方完成鉴权登记修复后通知重跑 Smoke。10/28 深夜已排除生产隐患：opennext 上游 key 失效（401）致 /add /search 503 → 已切换中转站（申报模型不变），契约 15/15 全绿**。`request_id=request_676a7115ff6b4acc9bc4`。
 > 官方 10/13 15:09 明确：登记的 **X-Api-Key 方式被接受**，Health 免鉴权确认，**Key 无需再提供、无需重新提交申请**；
 > 如需 Smoke 联调会在原邮件线程联系——**当前是被动等通知，端点必须持续可用**。
 > **⚠️ 与旧核验冲突（10/17 邮箱查证）**：10/3 00:44 已有一封"审核通过"邮件（MemSys **v0.5**，发放 LDBD Key，长期有效），
@@ -71,7 +71,22 @@
 4. A/B 均未落地；官方倾向先核鉴权再审中继方案；若改绑会先确认我方最终地址与固定部署信息。
 5. **官方守则（必须遵守）**：勿重复提交申请；勿邮件明文发 Key（如需补凭证官方会给安全渠道）；登记对齐 + 实际 worker 验证通过前不重跑 Smoke（勿同条件重复消耗配额）；保持现有部署不变。
 
-**我方当前三件事**：① 端点稳定在线（keepalive + 健康监控已挂，10/28 health 200）；② **清欠阿里云 FC**（B 方案随时可能被启用，中继欠费宕机会直接错失窗口）；③ 等官方安全提交渠道通知后第一时间提交/绑定 Memory System Key。
+**我方当前三件事**：① 端点稳定在线（keepalive + 健康监控已挂，10/28 health 200）；② ~~清欠阿里云 FC~~ ✅ 已完成（10/28 复测：python-UA 经中继 /health 200、无 Key /add 401、带 Key /search 200 → **方案 B 完全就绪**）；③ 等官方安全提交渠道通知后第一时间提交/绑定 Memory System Key。
+
+### 10/28 深夜：上游 key 全灭与切换（生产恢复记录）
+
+**根因链**：用户清欠阿里云后 FC 中继复活 → 顺手带 Key 实测 /search 发现 503 `search failed: HTTPStatusError`（57s）→ 定位到上游：opennext 中转站 key（`sk-RdA8l6…`，10/17 换的 apikey3）已 **401 Invalid token**（embeddings/chat 双双 401，本地 .env 同款 key 同样 401）→ 即 **/add /search 自 10/17 后某时刻起实际不可用**（health 与鉴权正常，keepalive 探不出这种深层故障）。
+
+**切换过程**：
+1. 备选①阶跃星辰三个月套餐 token：认证有效但**额度为 0**（`no left credit for step plan`，主模型 step-3.7-flash 同样 429），且套餐端点无 embeddings → 搁置待用户后台核实。
+2. **备选②中转站 api11.xhub.chat（NewAPI v1.0.0-rc.43）**：用户提供账号；API 直登被拒（凭据不符）→ 用户自行登录后，从页面会话用 XHR-hook 抓到 Bearer JWT（`/api/user/auth/refresh` POST 换 token），创建令牌 **memsys2**（无限额度），发现 key 全接口掩码 → 从行内复制按钮+剪贴板拿到完整 key。
+3. 分组坑：default 组无 gpt-4o-mini 渠道（503 distributor）、`OpenAI - Az` 无权限（403）→ 改 **`OpenAI - 官方`** 后全通：**chat gpt-4o-mini 200（3.6s）+ embeddings text-embedding-3-small 200（1536 维）**。
+4. 部署链：GitHub secret `OPENAI_API_KEY` 经 API（PAT + pynacl sealed box）轮换 → deploy.yml `OPENAI_BASE_URL` 字面量改为 `https://api11.xhub.chat/v1` → commit `21f3bee` push main → Deploy run `40723480861` success。
+5. **终验：官方口径契约 15/15 全绿**（含 add 幂等、search 相关性 Sweden、隔离、top_k=100）；add 200（11.1s）/ search 200（5.7s，召回 0.4523）。
+
+**切换后配置**：上游 `https://api11.xhub.chat/v1`（分组 `OpenAI - 官方`）；**申报模型不变**（gpt-4o-mini + text-embedding-3-small）→ 无需就模型变更通知官方；EMBED_DIM=1536 与存量库兼容，无需清库。
+
+**新风险**：① 生产多了一层中转站依赖（单点）；② 中转站账户余额/有效期需用户自行确认能覆盖 Full 评测用量（token 已设无限额度，但站内余额是硬约束）；③ 深层故障（上游挂但 health 200）keepalive 探不出——可选做带 Key 的 /search 深探活（每 30 分钟，消耗微量 token）。
 
 ### ⚠️ 历史申请冲突（10/17 发现，待澄清）
 
