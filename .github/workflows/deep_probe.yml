@@ -1,10 +1,18 @@
-name: Deep Probe (authed /add + /search)
+name: Deep Probe (authed /add + /search via FC relay)
 
-# keepalive.yml 只探 /health（免鉴权、不碰上游 LLM），
-# 探不出“上游 key 失效但 health 200”的深层故障（10/28 事故就是这样漏掉的）。
+# keepalive.yml 只探 /health（免鉴权 GET，不碰上游 LLM），探不出
+# “上游 key 失效但 health 200”的深层故障（10/28 事故就是这样漏掉的）。
 # 本工作流带 X-Api-Key 实打 /search 和 /add，覆盖：应用、鉴权、
 # embeddings 上游、chat 抽取上游、向量库全链路。
-# BASE 必须与平台登记的 Add/Search URL 一致（ms.show 直连，非中继）。
+#
+# ⚠️ 为什么走 FC 中继而不是 ms.show 直连（10/31 实测）：
+# ms.show 网关会拦截来自 GitHub Actions 机房 IP 的带凭据 POST，
+# 返回 401 {"Authorization failed."}（应用代码无此文案，先于应用层）；
+# GET /health 不受影响（keepalive 实测 200）。本机家宽 IP 直连正常。
+# FC 中继（memsys-relay，阿里云 cn-hangzhou）改写 UA 为浏览器值并透传
+# X-Api-Key，出口为阿里云 IP——官方 10/19 实测“python-UA 经中继 200”。
+# 走中继同时把方案 B 基础设施纳入监控：中继挂了（如欠费）本探针同样报警。
+# RELAY_UPSTREAM 与中继函数环境变量必须一致。
 
 on:
   schedule:
@@ -20,19 +28,24 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Deep probe /search + /add
+      - name: Deep probe /search + /add (via FC relay)
         env:
           MEMSYS_AUTH_TOKEN: ${{ secrets.MEMSYS_AUTH_TOKEN }}
         run: |
           set -o pipefail
           UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
-          BASE="https://gsym236998-memsys-api.ms.show"
+          BASE="https://memsys-relay-nhqpnszxog.cn-hangzhou.fcapp.run"   # FC 中继 → ms.show
+          DIRECT="https://gsym236998-memsys-api.ms.show"                 # 仅 GET /health 交叉对照
           [ -n "$MEMSYS_AUTH_TOKEN" ] || { echo "::error::MEMSYS_AUTH_TOKEN secret missing"; exit 1; }
 
           STAMP=$(date -u +%Y%m%dT%H%M%SZ)
           echo "STAMP=$STAMP" >> "$GITHUB_ENV"
 
-          echo "== /search (app + auth + embeddings + vector store) =="
+          echo "== cross-check: direct GET /health (gateway allows GET from Actions) =="
+          H_CODE=$(curl -sS -A "$UA" -m 60 -o /dev/null -w "%{http_code}" "$DIRECT/health" || echo "000")
+          echo "direct_health_code=$H_CODE"
+
+          echo "== /search via relay (app + auth + embeddings + vector store) =="
           S_CODE=$(curl -sS -A "$UA" -m 90 -o /tmp/search.json -w "%{http_code}" \
             -X POST "$BASE/search" \
             -H "X-Api-Key: $MEMSYS_AUTH_TOKEN" \
@@ -41,7 +54,7 @@ jobs:
             || echo "000")
           echo "search_code=$S_CODE"
 
-          echo "== /add (chat fact-extraction upstream, unique request_id) =="
+          echo "== /add via relay (chat fact-extraction upstream, unique request_id) =="
           TS="$(date +%s)000"
           A_CODE=$(curl -sS -A "$UA" -m 150 -o /tmp/add.json -w "%{http_code}" \
             -X POST "$BASE/add" \
@@ -56,9 +69,10 @@ jobs:
           [ "$A_CODE" = "200" ] && jq -e '.success == true' /tmp/add.json >/dev/null 2>&1 && A_OK=1
           [ "$S_OK" = "1" ] || echo "SEARCH_DETAIL=$(head -c 300 /tmp/search.json 2>/dev/null)" >> "$GITHUB_ENV"
           [ "$A_OK" = "1" ] || echo "ADD_DETAIL=$(head -c 300 /tmp/add.json 2>/dev/null)" >> "$GITHUB_ENV"
+          echo "DIRECT_HEALTH=$H_CODE" >> "$GITHUB_ENV"
 
           if [ "$S_OK" != "1" ] || [ "$A_OK" != "1" ]; then
-            echo "::error::Deep probe FAILED (search=$S_CODE add=$A_CODE)"
+            echo "::error::Deep probe FAILED (search=$S_CODE add=$A_CODE direct_health=$H_CODE)"
             exit 1
           fi
           echo "Deep probe OK (search=200 data-key, add=200 success)"
@@ -72,14 +86,17 @@ jobs:
             --search "Deep probe failing in:title" --json number --jq 'length' || echo 1)
           [ "$OPEN" = "0" ] || { echo "Issue already open, skip"; exit 0; }
           {
-            echo "**Deep probe failed at $STAMP UTC.** keepalive /health 仍可能 200 —— 这是上游/深层故障。"
+            echo "**Deep probe failed at $STAMP UTC**（探针路径 = GitHub Actions → FC 中继 → ms.show → 上游 LLM）。"
             echo ""
-            echo "| 探针 | 结果 |"
+            echo "| 环节 | 结果 |"
             echo "|---|---|"
-            echo "| /search | \`${SEARCH_DETAIL:-见 Actions 日志}\` |"
-            echo "| /add | \`${ADD_DETAIL:-见 Actions 日志}\` |"
+            echo "| 直连 GET /health | \`$DIRECT_HEALTH\`（若 200：应用活着，故障在中继或上游） |"
+            echo "| /search（经中继） | \`${SEARCH_DETAIL:-见 Actions 日志}\` |"
+            echo "| /add（经中继） | \`${ADD_DETAIL:-见 Actions 日志}\` |"
             echo ""
-            echo "处置线索见 \`memsys/SUBMISSION_PLAYBOOK.md\`「10/28 深夜：上游 key 全灭与切换」一节。"
+            echo "排查顺序：① FC 中继是否欠费/被删（阿里云 FC 控制台，函数 \`memsys-relay\`）；"
+            echo "② 上游 key 是否失效（\`SUBMISSION_PLAYBOOK.md\`「10/28 深夜：上游 key 全灭与切换」）；"
+            echo "③ 应用实例是否被回收（魔搭 Studio 控制台）。"
             echo "恢复后请关闭本 issue。Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           } > /tmp/body.md
           gh issue create --repo "$GITHUB_REPOSITORY" \
