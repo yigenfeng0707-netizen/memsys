@@ -104,7 +104,9 @@
 | GitHub keepalive | 最近一次 success 2026-10-31 08:56（UTC+8） |
 | 仓库状态 | 工作区干净、与 origin/main 同步、`.env` 未入库 |
 
-**新上线：带键深探活（10/31）**——`.github/workflows/deep_probe.yml`：每 30 分钟（:13/:43 错峰）带 `X-Api-Key` 实打 /search（断言 200 + `data` 键）与 /add（唯一 request_id，断言 `success=true`），覆盖 keepalive 探不到的深层故障（10/28 事故模式：上游 key 死但 health 200）；失败自动开 GitHub issue（同标题去重）。探针数据写入独立 `user_id=probe_deep`，不影响评测数据；每轮消耗 1 次 embedding + 1 次 gpt-4o-mini 抽取，成本可忽略。首次实跑已全绿（10/31 11:45 UTC+8）。
+**新上线：带键深探活（10/31）**——`.github/workflows/deep_probe.yml`：每 30 分钟（:13/:43 错峰）带 `X-Api-Key` 实打 /search（断言 200 + `data` 键）与 /add（唯一 request_id，断言 `success=true`），覆盖 keepalive 探不到的深层故障（10/28 事故模式：上游 key 死但 health 200）；失败自动开 GitHub issue（同标题去重）。探针数据写入独立 `user_id=probe_deep`，不影响评测数据；每轮消耗 1 次 embedding + 1 次 gpt-4o-mini 抽取，成本可忽略。**10/31 12:0x（UTC+8）首次实跑全绿**：直连 GET /health 200、经中继 /search 200 + /add 200（run `41166276847`）。
+
+**⚠️ 新发现（10/31 探活首跑踩出）：ms.show 网关拦截 GitHub Actions 机房 IP 的带凭据 POST**——返回 401 `{"Authorization failed."}`，该文案不存在于应用代码（`check_auth` 只有 missing/invalid credentials），先于应用层；同 Key 本机家宽 IP 200、GET /health 从 Actions 也 200（keepalive 长期实证）。⇒ 深探活必须走 **FC 中继**（阿里云出口 + UA 改写），副作用是方案 B 基础设施本身也被监控（中继挂 = 探针报警，如再欠费）。另注：**官方评测 worker 若从海外机房 IP 发 POST，也可能踩中这条网关规则**——与 10/17 UA 拦截是两回事，若后续 Smoke 再 401（而非 403），优先怀疑此规则并让官方报 worker 出口 IP。
 
 **今日待办**：① 查邮箱（10/29~31 是否有官方回信）；② 无回信则发催办邮件（双语草稿 `../佐证附件/操作记录/20261031_escalation_email_draft.txt`，**待用户审阅后从原线程回复发送**）；③ 用户确认 xhub 中转站余额能覆盖 Full 用量。
 
