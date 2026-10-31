@@ -2,11 +2,14 @@ name: Keep Studio Alive
 
 on:
   schedule:
-    # Every 5 minutes, staggered entries avoiding minute :00 (GitHub cron
-    # high-load slot). Empirically GitHub drops most scheduled runs; more
-    # staggered slots = higher chance at least one fires each 30min window.
+    # Every ~5 minutes, 4 staggered entries avoiding minute :00 (GitHub cron
+    # high-load slot). Empirically GitHub drops most scheduled runs (10/31:
+    # both slots silent for 4h straight); more staggered slots = higher
+    # chance at least one fires per window.
     - cron: '4-59/10 * * * *'
     - cron: '9-59/10 * * * *'
+    - cron: '6-59/10 * * * *'
+    - cron: '12-59/10 * * * *'
   workflow_dispatch:
 
 jobs:
@@ -45,8 +48,31 @@ jobs:
             "$BASE/health" || echo "000")
           echo "app health: $code"
 
+          # 10/31 lesson: the ms.show gateway can dynamically 401 healthy
+          # requests by client-IP reputation ("Authorization failed." happens
+          # BEFORE the app; a local residential IP got flagged after heavy
+          # probing while the app itself was fine). Cross-check via the FC
+          # relay (Aliyun egress, different reputation pool) before deciding
+          # the app is down - otherwise a gateway flag would cause a redeploy
+          # storm every firing.
           if [ "$code" != "200" ]; then
-            echo "::warning::App host unhealthy (HTTP $code) - attempting redeploy trigger"
+            sleep 20
+            code=$(curl -sS -A "$UA" -m 300 -o /dev/null -w "%{http_code}" \
+              "$BASE/health" || echo "000")
+            echo "app health retry: $code"
+          fi
+          if [ "$code" != "200" ]; then
+            RCODE=$(curl -sS -A "$UA" -m 120 -o /dev/null -w "%{http_code}" \
+              "https://memsys-relay-nhqpnszxog.cn-hangzhou.fcapp.run/__relay/health" || echo "000")
+            echo "relay cross-check: $RCODE"
+            if [ "$RCODE" = "200" ]; then
+              echo "App healthy via relay - direct $code is a gateway-side flag, NOT redeploying"
+              exit 0
+            fi
+          fi
+
+          if [ "$code" != "200" ]; then
+            echo "::warning::App host unhealthy (HTTP $code, relay also failing) - attempting redeploy trigger"
             # Trigger redeploy if unhealthy
             curl -sS -X POST \
               "https://modelscope.cn/openapi/v1/studios/$OWNER/$REPO/deploy" \
