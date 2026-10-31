@@ -1,0 +1,87 @@
+name: Deep Probe (authed /add + /search)
+
+# keepalive.yml 只探 /health（免鉴权、不碰上游 LLM），
+# 探不出“上游 key 失效但 health 200”的深层故障（10/28 事故就是这样漏掉的）。
+# 本工作流带 X-Api-Key 实打 /search 和 /add，覆盖：应用、鉴权、
+# embeddings 上游、chat 抽取上游、向量库全链路。
+# BASE 必须与平台登记的 Add/Search URL 一致（ms.show 直连，非中继）。
+
+on:
+  schedule:
+    # 每 30 分钟，错开 :00 高负载槽（GitHub 常丢弃整点任务）与 keepalive 的 :4/:9 槽
+    - cron: '13,43 * * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Deep probe /search + /add
+        env:
+          MEMSYS_AUTH_TOKEN: ${{ secrets.MEMSYS_AUTH_TOKEN }}
+        run: |
+          set -o pipefail
+          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+          BASE="https://gsym236998-memsys-api.ms.show"
+          [ -n "$MEMSYS_AUTH_TOKEN" ] || { echo "::error::MEMSYS_AUTH_TOKEN secret missing"; exit 1; }
+
+          STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+          echo "STAMP=$STAMP" >> "$GITHUB_ENV"
+
+          echo "== /search (app + auth + embeddings + vector store) =="
+          S_CODE=$(curl -sS -A "$UA" -m 90 -o /tmp/search.json -w "%{http_code}" \
+            -X POST "$BASE/search" \
+            -H "X-Api-Key: $MEMSYS_AUTH_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"query":"deep probe connectivity check","user_id":"probe_deep","top_k":1}' \
+            || echo "000")
+          echo "search_code=$S_CODE"
+
+          echo "== /add (chat fact-extraction upstream, unique request_id) =="
+          TS="$(date +%s)000"
+          A_CODE=$(curl -sS -A "$UA" -m 150 -o /tmp/add.json -w "%{http_code}" \
+            -X POST "$BASE/add" \
+            -H "X-Api-Key: $MEMSYS_AUTH_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"request_id\":\"probe-$STAMP\",\"messages\":[{\"role\":\"user\",\"timestamp\":$TS,\"content\":\"Deep probe connectivity check message.\"}],\"user_id\":\"probe_deep\",\"session_id\":\"probe_deep\"}" \
+            || echo "000")
+          echo "add_code=$A_CODE"
+
+          S_OK=0; A_OK=0
+          [ "$S_CODE" = "200" ] && jq -e 'has("data")' /tmp/search.json >/dev/null 2>&1 && S_OK=1
+          [ "$A_CODE" = "200" ] && jq -e '.success == true' /tmp/add.json >/dev/null 2>&1 && A_OK=1
+          [ "$S_OK" = "1" ] || echo "SEARCH_DETAIL=$(head -c 300 /tmp/search.json 2>/dev/null)" >> "$GITHUB_ENV"
+          [ "$A_OK" = "1" ] || echo "ADD_DETAIL=$(head -c 300 /tmp/add.json 2>/dev/null)" >> "$GITHUB_ENV"
+
+          if [ "$S_OK" != "1" ] || [ "$A_OK" != "1" ]; then
+            echo "::error::Deep probe FAILED (search=$S_CODE add=$A_CODE)"
+            exit 1
+          fi
+          echo "Deep probe OK (search=200 data-key, add=200 success)"
+
+      - name: Open issue on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          OPEN=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open \
+            --search "Deep probe failing in:title" --json number --jq 'length' || echo 1)
+          [ "$OPEN" = "0" ] || { echo "Issue already open, skip"; exit 0; }
+          {
+            echo "**Deep probe failed at $STAMP UTC.** keepalive /health 仍可能 200 —— 这是上游/深层故障。"
+            echo ""
+            echo "| 探针 | 结果 |"
+            echo "|---|---|"
+            echo "| /search | \`${SEARCH_DETAIL:-见 Actions 日志}\` |"
+            echo "| /add | \`${ADD_DETAIL:-见 Actions 日志}\` |"
+            echo ""
+            echo "处置线索见 \`memsys/SUBMISSION_PLAYBOOK.md\`「10/28 深夜：上游 key 全灭与切换」一节。"
+            echo "恢复后请关闭本 issue。Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } > /tmp/body.md
+          gh issue create --repo "$GITHUB_REPOSITORY" \
+            --title "Deep probe failing: /add or /search unhealthy ($STAMP)" \
+            --body-file /tmp/body.md
