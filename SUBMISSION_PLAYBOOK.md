@@ -2,7 +2,7 @@
 
 > **最后更新**：2026-10-31（提交截止日盘点）
 > **用途**：AML 第二届挑战赛报名与评测执行清单（赛期 9/20~10/31，今日为第 42 天：**提交截止日当天** / 评测队列终止前第 4 天）。
-> **状态**：**审核中——等官方完成鉴权登记修复后通知重跑 Smoke。官方自 10/19 后零回信；10/31 当天实测端点全链路健康（health 200、带键 /search /add 双探针均 200），并已上线每 30 分钟带键深探活（`deep_probe.yml`）。催办邮件草稿待发。** `request_id=request_676a7115ff6b4acc9bc4`。
+> **状态**：**审核中——等官方完成鉴权登记修复后通知重跑 Smoke。官方自 10/19 后零回信（10/31 三路核查确认）；10/31 12:34 截止日催办邮件已发出（QQ 投递状态：投递成功，同线程回复），现等官方回复。10/31 当天实测端点全链路健康（health 200、带键 /search /add 双探针均 200），并已上线每 30 分钟带键深探活（`deep_probe.yml`）。** `request_id=request_676a7115ff6b4acc9bc4`。
 > 官方 10/13 15:09 明确：登记的 **X-Api-Key 方式被接受**，Health 免鉴权确认，**Key 无需再提供、无需重新提交申请**；
 > 如需 Smoke 联调会在原邮件线程联系——**当前是被动等通知，端点必须持续可用**。
 > **⚠️ 与旧核验冲突（10/17 邮箱查证）**：10/3 00:44 已有一封"审核通过"邮件（MemSys **v0.5**，发放 LDBD Key，长期有效），
@@ -40,6 +40,7 @@
 | 10/19 14:23 | 发（同线程回复，已发送核验） | **逐项答复**：① 自检地址与登记完全一致、Add/Search 均带 X-Api-Key、403 为网关按 UA 拦截（10010101007）且发生在鉴权之前；② 登记鉴权方式确为 x-api-key、Key 已绑定申请表（邮件不披露），Health 可补登记为免鉴权 GET；③ **A 修 worker UA / B 后台改绑 FC 中继，任一落地即配合重跑 Smoke，配额按官方节奏、我方不主动消耗**。正文 `20261019_outbound_reply.txt`，截图 `20261019_qq3_{compose_filled,after_send}.png`（10/28 自 `.tmp` 补归档） |
 | 10/19 12:01/12:02（两封，42K/44K） | 收 | 官方核对结论：① **版本错配担忧解除**——v0.7-e158c66 已于 10/17 13:57 登记、两次 Smoke 均绑定该版本，无需重复 Add Version；② **真正卡点 = 平台登记错配**——后台仍显示"无鉴权 / 未绑定 Key / Health 未登记"，与 10/13 书面确认矛盾，官方内部核查中；③ 官方从原执行节点实测对照：python-httpx 直连 403（同网关码）、**MemEval-Worker/1.0 直连 200**、Mozilla 200、python-UA 经我方中继 200；④ A/B 均未落地，官方倾向先核鉴权再审"队伍专用中继"（避免影响其他参赛系统）；⑤ 勿邮件发 Key、勿重复提交申请、勿同条件重复消耗 Smoke。全文 `20261019_aml_re_13322_reply.txt` / `20261019_aml_re_1951_reply.txt` |
 | 10/19 ~15:0x（56K，在我方 14:23 答复之后到达） | 收 | **官方最终回复（当前最新一封官方邮件）**：① 403 与网关拦默认 python UA 的判断一致，但过网关后还需验证平台实际携带正确 X-Api-Key；② 官方将核对 request_676a… 鉴权登记与已签发配置不一致的原因，如需补凭证会另行说明**安全提交渠道**（勿邮件发、勿重复申请）；③ A/B 取舍待平台兼容性确认；若改绑中继会先与我方确认最终地址与固定部署信息；④ **登记对齐 + 实际 worker 验证通过后才通知安排 Smoke（含重试/配额处理），在此之前保持现有部署不变、勿主动发起测试**。全文 `20261019_aml_re_1423_reply.txt` |
+| 10/31 12:34 | 发（同线程回复，QQ 投递状态"投递成功"） | **截止日催办信（双语）**：① 今日 10/31 23:59 提交截止 + 11/04 队列终止；② 请求优先推进鉴权登记核查，需补凭证即走安全渠道；③ **恳请 11-01 前安排 Smoke**（Full 0.5~5 天，越早越可能赶上队列终止）；④ A（worker UA）/ B（后台改绑 FC 中继）任一落地即配合重跑；⑤ 重申合规（未重复申请、未披露 Key、Smoke 2/30、端点 10/11 起未变、10-28 契约 15/15、保活+深探监控就绪）。CC 自身留档。截图 `20261031_qq4_{sent_list,after_send}.png` + `20261031_qq_compose_{filled,body}.png` |
 | 10/20~10/31 | — | **官方零回信（12 天）**。10/31 邮箱三路复查：① 搜索 `amlleaderboard` 共 14 封 = 官方 8 + 我方 6（与 10/28 完全一致，最新官方邮件仍为 10/19）；② 收件箱按日期扫"今天 4 + 昨天 19 + 周四 12"封，无任何官方地址来信；③ 垃圾箱 16 封全是营销邮件（当天新落 2 封 = ChatGPT/Eazo 推广）。证据 `佐证附件/操作记录/20261031_mail_{search_amlleaderboard,inbox_top,spam_scan}.png` + 3 份 transcript |
 
 > **魔搭 UA 豁免工单（10/17 17:39，已发送核验）**：新邮件致 `contact@modelscope.ai`（魔搭页脚「联系我们」唯一官方渠道，无表单工单系统），主题「创空间域名 gsym236998-memsys-api.ms.show 被 WAF 按 User-Agent 拦截（Code 10010101007），申请豁免/咨询合规接入」，正文 `.tmp/ms_body.txt`：现象 + UA 矩阵 + 诉求（域名 UA 豁免 / 白名单申请方式 / 合规接入建议），**不含任何 Key**。截图 `20261017_ms_{ticket_compose,before_send,after_send,sent_verify}.png`。
@@ -48,7 +49,7 @@
 > **403 归因实锤（10/17 16:0x 补）**：`server.py`/`config.py` **不存在任何 403 响应路径**（鉴权失败一律 401，`GET /evaluation-access-requests` 的 403 是平台侧返回）→ Job 记录的 `HTTP 403` 只能来自 ms.show 网关层，**平台 worker 请求未达应用**为排除法结论；平台 job 详情/`View Endpoints`/API Guide/docs 均无 UA 或请求回显，bound endpoints 为我方 ms.show 直连（无中继），故 worker UA 只能由官方日志侧确认。
 > **Smoke 第 2 次（10/17 16:32，用户授权试探）**：Job `teval_0f3d724cc97fde83`（Run `smoke-1017b`，Textual，v0.7-e158c66，16/16，TopK 100）2 秒失败，**同 `ADD_ACCESS_DENIED · HTTP 403`、0/1 tasks** → 失败模式未变，官方尚无动作（去信 40 分钟）；Track smoke 配额 2/30。平台新增观察点：job 详情有 **Resume latest interrupted job**（checkpoint 恢复）与「Failed attempts (1) 仍计一次评测结果」，官方改 UA 后优先 Resume 恢复。截图 `20261017_aml_{confirm_modal_b,poll_b*,smoke_job_b}.png`。
 > **自助评测链路**：Eval Key 已取回（仅存 sessionStorage/临时文件）→ `/evaluation` 可进 → `Add Version` 已绑 v0.7-e158c66 → 表单/确认弹窗/Job 生成全流程跑通；Smoke 配额 1 次/小时、每赛道 ≤30 次，Full gate 0/8 待 smoke 过线解锁。
-> 往来详情同步记录于本地凭据文件 `aml_submission.json`（Temp/opencode）。
+> 往来详情同步记录于本地凭据文件 `aml_submission.json`（Temp/opencode；**该文件已被系统清理，此后往来以本文件 + `佐证附件/操作记录/` 为权威记录**）。
 >
 > **FC 反代中继上线（10/17 18:5x 端到端 6/6 验证）**：阿里云 FC 事件函数 `memsys-relay`（cn-hangzhou / Python 3.12 / 纯标准库 urllib / 超时 300s）+ HTTP 触发器 `http-trigger`（无需认证，GET/POST/PUT/DELETE，公网 URL 开启），中继端点 **`https://memsys-relay-nhqpnszxog.cn-hangzhou.fcapp.run`**；转发至 ms.show 时改写 UA 为浏览器值、`X-Api-Key` 原样透传。端到端测试 `佐证附件/操作记录/20261017_fc_relay_e2e.txt` **6/6 PASS**（核心对照：python-UA 直连 ms.show=403 → 经中继=200；无 Key→401 鉴权保留；有 Key /add /search→200）。详见下方「FC 反代中继」章节。
 >
@@ -108,7 +109,7 @@
 
 **⚠️ 新发现（10/31 探活首跑踩出）：ms.show 网关拦截 GitHub Actions 机房 IP 的带凭据 POST**——返回 401 `{"Authorization failed."}`，该文案不存在于应用代码（`check_auth` 只有 missing/invalid credentials），先于应用层；同 Key 本机家宽 IP 200、GET /health 从 Actions 也 200（keepalive 长期实证）。⇒ 深探活必须走 **FC 中继**（阿里云出口 + UA 改写），副作用是方案 B 基础设施本身也被监控（中继挂 = 探针报警，如再欠费）。另注：**官方评测 worker 若从海外机房 IP 发 POST，也可能踩中这条网关规则**——与 10/17 UA 拦截是两回事，若后续 Smoke 再 401（而非 403），优先怀疑此规则并让官方报 worker 出口 IP。
 
-**今日待办（10/31 更新）**：① ~~查邮箱~~ ✅ **已完成：10/29~31 官方零回信**（三路核查，见上方 10/20~10/31 行）；② **发催办邮件**（双语草稿 `../佐证附件/操作记录/20261031_escalation_email_draft.txt`，待用户审阅后从原线程回复发送）；③ 用户确认 xhub 中转站余额能覆盖 Full 用量。
+**今日待办（10/31 更新）**：① ~~查邮箱~~ ✅ **已完成：10/29~31 官方零回信**（三路核查，见上方 10/20~10/31 行）；② ~~发催办邮件~~ ✅ **已发送（10/31 12:34，投递成功，见邮件往来表新增行）**；③ 用户确认 xhub 中转站余额能覆盖 Full 用量。
 
 ### ⚠️ 历史申请冲突（10/17 发现，待澄清）
 
