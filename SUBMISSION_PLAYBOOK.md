@@ -695,3 +695,19 @@ Smoke 全 403？
 | 真实 httpx 默认 `python-httpx/0.27.0` | **12/15 失败**，全部 403：`{"Code":10010101007,"Message":"当前接口不支持通过SDK Token直接访问..."}`——请求在 ms.show WAF 层被拒，未达 App |
 
 **结论**：UA 过滤风险已被**实测坐实**，而非推测。App 层逻辑在可达时完全正确。
+
+## 9. 11/18 进度实证复核记录（盘点日）
+
+当日（2026-11-18）按双线核对法对项目做进度盘点，全部实测如下：
+
+| 核验项 | 结果 |
+|---|---|
+| 契约自测（本地独立临时库起服务，`MEMSYS_DB=.tmp/contract_selftest_1118.db`，测完删库关服） | **15/15 全 PASS**（health、add 幂等、search 结构、top_k=100、user_id 隔离等，同 8/26 线上口径） |
+| 平台 `GET /leaderboard` | `{"entries":[]}` 仍空 |
+| 平台 `GET /eval-jobs/recent` / `eval-results/private`（带 X-Leaderboard-Api-Key 实调） | 均 `{"jobs":[]}` / `{"results":[]}` —— **本期未获评测结论维持** |
+| 平台 `GET /access/versions` | v0.5 + v0.7-e158c66 均 active 在案（v0.7 最后官方触碰仍为 11-04） |
+| 官网首页 | 200，仍为 Cycle 2 页面，无 Cycle 3 / 第三届 / 下一届关键词（发榜窗口 11 月中旬，持续监控中） |
+| 端点健康 | FC 中继 `/__relay/health` 200 ok；ms.show 直连 `/health`（浏览器 UA）200 ok —— 双绿 |
+| 文档修订 | `README.md` 域名更新为 `agentmemoryleaderboard.ai`；v0.7 状态行更新为"本期未获评测、下期就绪"（本节与 `NEXT_ROUND_PLAN.md` 一并提交入库） |
+
+**结论**：系统侧全部可交付项闭环，无待办；等待窗口期（发榜核对 / 复活信号 / 下一期公告）按 §4 巡检持续盯防。

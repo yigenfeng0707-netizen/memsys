@@ -1,6 +1,6 @@
 # MemSys — AML Agent Memory Challenge 参赛系统
 
-面向 [Agent Memory Leaderboard](https://agentmemories.ai) 第二届挑战赛（文本赛道）的自研记忆系统。
+面向 [Agent Memory Leaderboard](https://agentmemoryleaderboard.ai) 第二届挑战赛（文本赛道）的自研记忆系统。
 只暴露 `Add` / `Search` 两个接口，符合 AML 同步接入契约；平台统一负责 Answer(gpt-4o-mini) / Eval / 榜单。
 
 ## 方法来源与改动披露（赛事合规）
@@ -64,7 +64,7 @@ python test_contract.py
 - **v0.4**：本地评测闭环（LoCoMo 全量10卷，复刻官方 answer/judge prompt）；主题 rollup；错误归因工具
 - **v0.5**：统一画像档案（`__profile__` 钉首位）+ 日期粒度时间戳 + LLM listwise 重排（归档口径本地全量 67.8%，待复核，见 `../eval_runs/EXPERIMENTS.md`）
 - **v0.6**：公网部署（魔搭 Docker + GitHub Actions push main 自动部署、每 10 分钟保活；CI/CD 踩坑见 `CI_CD_PITFALLS.md`）+ AML 二期报名
-- **v0.7-e158c66（当前，AML 报名提交版）**：日期钳制 + X-Api-Key 优先鉴权（兼容 ms.show 网关注入）+ 5xx 重试 + `/` 根路由；本地全量 64.4%（10/11）/ 63.9%（10/17 同臂复跑，噪声内）；**状态：官方审核中，Smoke 因 ms.show 网关按 UA 拦截 403，待官方修复 worker UA 后重跑（详见 `SUBMISSION_PLAYBOOK.md`）**
+- **v0.7-e158c66（当前，AML 报名提交版）**：日期钳制 + X-Api-Key 优先鉴权（兼容 ms.show 网关注入）+ 5xx 重试 + `/` 根路由；本地全量 64.4%（10/11）/ 63.9%（10/17 同臂复跑，噪声内）；**状态：本期（AML 第二届）未获官方评测，无成绩——卡点全程在平台侧鉴权核对未完成（11-04 23:59 队列终止），详见 `SUBMISSION_PLAYBOOK.md` 11/05 终局核验；下期就绪方案见 `NEXT_ROUND_PLAN.md`**
 
 ## 实验结论存档
 
