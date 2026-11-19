@@ -711,3 +711,17 @@ Smoke 全 403？
 | 文档修订 | `README.md` 域名更新为 `agentmemoryleaderboard.ai`；v0.7 状态行更新为"本期未获评测、下期就绪"（本节与 `NEXT_ROUND_PLAN.md` 一并提交入库） |
 
 **结论**：系统侧全部可交付项闭环，无待办；等待窗口期（发榜核对 / 复活信号 / 下一期公告）按 §4 巡检持续盯防。
+
+## 10. 11/19 Cycle 2 发榜核验记录（本期正式收场）
+
+**背景**：官网明示 Cycle 2 官方成绩于 **2026-11-19 发布**。当日实测全量核验：
+
+| 核验项 | 结果 |
+|---|---|
+| 发榜状态 | ✅ **11/19 正式发布**：官网首页明示"Cycle 2 official results are expected to be released on November 19, 2026"；六个赛道榜单页页内标注 "released November 19, 2026" |
+| 公开榜单（6 赛道全部实查） | 开源文本 **89 条目**（榜首 Resurface 61.22，其次 mnemotree 60.81、starwingMem 60.56…）；商业组文本 125 条；编程/多模态赛道全部出分 |
+| **MemSys 在榜** | ❌ **不在**：学术组 textual/coding/multimodal + 商业组 textual/coding/multimodal 六页全查，均无 MemSys |
+| 私有 API | 旧路径 `/eval-jobs/recent`、`/eval-results/private` 随发榜改版返回 404；`/results/cycle-2` 跳转 `studio.memorax.net` 演示站，需另一套访问凭证（LDBD Key 不适用）——公开榜单已含完整得分，不影响核对 |
+| 官方邮件 | 收件箱 12 封（最新仍 11/4），垃圾箱 20 封均为营销邮件——**发榜未发通知邮件**，榜单页为权威信号源 |
+
+**结论**：**本期（AML 第二届）正式收场**——MemSys 因平台侧鉴权核对未完成、队列 11/04 23:59 终止而未获评测、未上榜，与 11/05 终局核验预判完全一致。我方报名合规、系统/端点资产完好（契约 15/15、双端点在线），全部资产可复用于下一期。后续动作：按 `NEXT_ROUND_PLAN.md` 持续盯复活信号 / 下一期公告，窗口出现即 24h 内递齐响应包。
